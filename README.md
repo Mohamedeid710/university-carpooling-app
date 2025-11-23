@@ -11,3 +11,6 @@ Wajd and Hmaza developed the Sequence Diagram for the Ride Booking process, show
 Wajd worked on selecting an architecture style ; MVC
 Wajd created a decision matrix table to evaulate MVC
 Wajd improved the designs of the wireframes for the driver
+shadow has done a part of the architechtural analysis (comparing microservices).
+shadow created a decision matrix for the microservices model.
+shadow updated the wireframes, creating layouts for Confirm Ride page and rate ride page, whilst updating the book ride page.
