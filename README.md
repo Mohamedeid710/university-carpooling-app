@@ -8,3 +8,6 @@ Shadow has created a user story for the driver, and two activity diagrams for th
 Wajd worked on the frontend design, creating the layouts for the Book Ride, Ride History, and Verification pages.
 Wajd created the Rider user story with corresponding acceptance criteria for the requirements document.
 Wajd and Hmaza developed the Sequence Diagram for the Ride Booking process, showing interactions between the rider, app, and database.
+Wajd worked on selecting an architecture style ; MVC
+Wajd created a decision matric table to evaulate MVC
+Wajd improved the designs of the wireframes for the driver
