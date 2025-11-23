@@ -15,3 +15,4 @@ shadow has done a part of the architechtural analysis (comparing microservices).
 shadow created a decision matrix for the microservices model.
 shadow updated the wireframes, creating layouts for Confirm Ride page and rate ride page, whilst updating the book ride page.
 Mohamed Has maintained and structured the kanban board and daily stand up meeting, as well as creating the burndown chart and justifying the final choice for the architectural style.
+Hamza worked/updated on the Sequence diagram for ride posting and booking
