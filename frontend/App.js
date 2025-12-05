@@ -1,3 +1,4 @@
+// App.js
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -28,7 +29,7 @@ export default function App() {
   }, []);
 
   if (loading) {
-    return null; // Or add a loading screen component here
+    return null;
   }
 
   return (
@@ -39,15 +40,14 @@ export default function App() {
           <>
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="FindRide" component={FindRideScreen} />
-             <Stack.Screen name="RideDetails" component={RideDetailsScreen} />
-        </>
+            <Stack.Screen name="RideDetails" component={RideDetailsScreen} />
+          </>
         ) : (
           // User is not signed in
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="SignIn" component={SignInScreen} />
             <Stack.Screen name="SignUp" component={SignUpScreen} />
-            <Stack.Screen name="Home" component={HomeScreen} />
           </>
         )}
       </Stack.Navigator>
