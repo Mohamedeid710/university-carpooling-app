@@ -1,107 +1,21 @@
-// src/screens/RideDetailsScreen.js
-import React, { useState } from 'react';
+/// src/screens/RideDetailsScreen.js
+import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
-import { doc, getDoc, runTransaction } from 'firebase/firestore';
-import { db, auth } from '../config/firebase';
+import { auth } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function RideDetailsScreen({ navigation, route }) {
   const { ride } = route.params;
-  const [loading, setLoading] = useState(false);
   const user = auth.currentUser;
 
-  const handleBookSeat = async () => {
-    if (!user) {
-      Alert.alert('Error', 'You must be logged in to book a ride');
-      return;
-    }
-
-    if (ride.driverId === user.uid) {
-      Alert.alert('Cannot Book', 'You cannot book your own ride');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Get user data
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userData = userDoc.data();
-
-      // Use Firestore transaction to ensure data consistency
-      await runTransaction(db, async (transaction) => {
-        const rideRef = doc(db, 'rides', ride.id);
-        const rideDoc = await transaction.get(rideRef);
-
-        if (!rideDoc.exists()) {
-          throw new Error('Ride not found');
-        }
-
-        const rideData = rideDoc.data();
-
-        if (rideData.availableSeats <= 0) {
-          throw new Error('No seats available');
-        }
-
-        // Check if user already booked this ride
-        const bookingsSnapshot = await getDocs(
-          query(
-            collection(db, 'bookings'),
-            where('rideId', '==', ride.id),
-            where('riderId', '==', user.uid)
-          )
-        );
-
-        if (!bookingsSnapshot.empty) {
-          throw new Error('You have already booked this ride');
-        }
-
-        // Create booking
-        const bookingRef = doc(collection(db, 'bookings'));
-        transaction.set(bookingRef, {
-          rideId: ride.id,
-          riderId: user.uid,
-          riderName: userData.name || user.displayName || 'User',
-          driverId: ride.driverId,
-          driverName: ride.driverName,
-          pickupLocation: ride.pickupLocation,
-          destination: ride.destination,
-          departureTime: ride.departureTime,
-          status: 'confirmed',
-          createdAt: new Date().toISOString(),
-          rated: false,
-        });
-
-        // Update ride
-        transaction.update(rideRef, {
-          availableSeats: rideData.availableSeats - 1,
-        });
-      });
-
-      Alert.alert(
-        'Booking Confirmed!',
-        'Your seat has been booked successfully. The driver will contact you soon.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Home'),
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Booking error:', error);
-      Alert.alert('Booking Failed', error.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleBookSeat = () => {
+    navigation.navigate('RideConfirmation', { ride });
   };
 
   return (
@@ -206,15 +120,11 @@ export default function RideDetailsScreen({ navigation, route }) {
         <TouchableOpacity
           style={styles.bookButton}
           onPress={handleBookSeat}
-          disabled={loading || ride.availableSeats === 0}
+          disabled={ride.availableSeats === 0}
         >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.bookButtonText}>
-              {ride.availableSeats === 0 ? 'Fully Booked' : 'Confirm Booking'}
-            </Text>
-          )}
+          <Text style={styles.bookButtonText}>
+            {ride.availableSeats === 0 ? 'Fully Booked' : 'Confirm Booking'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
