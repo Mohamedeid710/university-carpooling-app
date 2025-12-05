@@ -13,6 +13,8 @@ import HomeScreen from './src/screens/HomeScreen';
 import FindRideScreen from './src/screens/FindRideScreen';
 import RideDetailsScreen from './src/screens/RideDetailsScreen';
 import RideConfirmationScreen from './src/screens/RideConfirmationScreen';
+import RatingScreen from './src/screens/RatingScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -36,12 +38,13 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-  // User is signed in
+       {user ? (
   <>
     <Stack.Screen name="Home" component={HomeScreen} />
     <Stack.Screen name="FindRide" component={FindRideScreen} />
     <Stack.Screen name="RideDetails" component={RideDetailsScreen} />
+    <Stack.Screen name="RideConfirmation" component={RideConfirmationScreen} />
+    <Stack.Screen name="Rating" component={RatingScreen} />
   </>
 ) : (
           // User is not signed in
