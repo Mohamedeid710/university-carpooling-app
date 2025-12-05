@@ -9,6 +9,8 @@ import WelcomeScreen from './src/screens/WelcomeScreen';
 import SignInScreen from './src/screens/SignInScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import FindRideScreen from './src/screens/FindRideScreen';
+import RideDetailsScreen from './src/screens/RideDetailsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -34,13 +36,18 @@ export default function App() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           // User is signed in
-          <Stack.Screen name="Home" component={HomeScreen} />
+          <>
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="FindRide" component={FindRideScreen} />
+             <Stack.Screen name="RideDetails" component={RideDetailsScreen} />
+        </>
         ) : (
           // User is not signed in
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="SignIn" component={SignInScreen} />
             <Stack.Screen name="SignUp" component={SignUpScreen} />
+            <Stack.Screen name="Home" component={HomeScreen} />
           </>
         )}
       </Stack.Navigator>

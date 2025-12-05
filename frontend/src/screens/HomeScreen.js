@@ -45,6 +45,15 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+                <TouchableOpacity 
+                  style={styles.actionCard}
+          onPress={() => navigation.navigate('FindRide')}
+        >
+          <Text style={styles.actionIcon}>🔍</Text>
+          <Text style={styles.actionTitle}>Find Ride</Text>
+          <Text style={styles.actionSubtitle}>Search available rides</Text>
+        </TouchableOpacity>
+
         {/* My Rides Section */}
         <Text style={styles.sectionTitle}>My Rides</Text>
         <View style={styles.ridesContainer}>
