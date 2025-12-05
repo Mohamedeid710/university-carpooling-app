@@ -1,4 +1,3 @@
-// App.js
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -27,7 +26,7 @@ export default function App() {
   }, []);
 
   if (loading) {
-    return null; // Or a loading screen
+    return null; // Or add a loading screen component here
   }
 
   return (
