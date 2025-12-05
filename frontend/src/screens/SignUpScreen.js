@@ -42,16 +42,13 @@ export default function SignUpScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // Create user account
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Update profile with name
       await updateProfile(user, {
         displayName: name
       });
 
-      // Create user document in Firestore
       await setDoc(doc(db, 'users', user.uid), {
         name: name,
         email: email,
@@ -62,7 +59,6 @@ export default function SignUpScreen({ navigation }) {
       });
 
       Alert.alert('Success', 'Account created successfully!');
-      // Navigation to Home will happen automatically via auth state listener
     } catch (error) {
       Alert.alert('Sign Up Failed', error.message);
     } finally {
