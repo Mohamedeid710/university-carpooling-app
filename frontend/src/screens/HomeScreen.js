@@ -31,19 +31,33 @@ export default function HomeScreen({ navigation }) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Quick Actions */}
         <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionGrid}>
-          <TouchableOpacity style={styles.actionCard}>
-            <Text style={styles.actionIcon}>🚗</Text>
-            <Text style={styles.actionTitle}>Offer Ride</Text>
-            <Text style={styles.actionSubtitle}>Share your trip</Text>
-          </TouchableOpacity>
+       <View style={styles.actionColumn}>
+  <View style={styles.actionRow}>
+    <TouchableOpacity style={styles.actionCard}>
+      <Text style={styles.actionIcon}>🚗</Text>
+      <Text style={styles.actionTitle}>Offer Ride</Text>
+      <Text style={styles.actionSubtitle}>Share your trip</Text>
+    </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
-            <Text style={styles.actionIcon}>🔍</Text>
-            <Text style={styles.actionTitle}>Find Ride</Text>
-            <Text style={styles.actionSubtitle}>Search available rides</Text>
-          </TouchableOpacity>
-        </View>
+    <TouchableOpacity 
+      style={styles.actionCard}
+      onPress={() => navigation.navigate('FindRide')}
+    >
+      <Text style={styles.actionIcon}>🔍</Text>
+      <Text style={styles.actionTitle}>Find Ride</Text>
+      <Text style={styles.actionSubtitle}>Search available rides</Text>
+    </TouchableOpacity>
+  </View>
+
+  <TouchableOpacity 
+    style={styles.actionCardWide}
+    onPress={() => navigation.navigate('DriverDocuments')}
+  >
+    <Text style={styles.actionIcon}>📄</Text>
+    <Text style={styles.actionTitle}>Verify License</Text>
+    <Text style={styles.actionSubtitle}>Submit driver documents</Text>
+  </TouchableOpacity>
+</View>
 
                 <TouchableOpacity 
                   style={styles.actionCard}
@@ -133,6 +147,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
   },
+  actionColumn: {
+  gap: 16,
+},
+actionRow: {
+  flexDirection: 'row',
+  gap: 16,
+},
+actionCardWide: {
+  backgroundColor: '#FFFFFF',
+  padding: 20,
+  borderRadius: 16,
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  elevation: 3,
+},
   actionCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
