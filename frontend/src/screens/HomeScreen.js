@@ -33,11 +33,14 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.sectionTitle}>Quick Actions</Text>
        <View style={styles.actionColumn}>
   <View style={styles.actionRow}>
-    <TouchableOpacity style={styles.actionCard}>
-      <Text style={styles.actionIcon}>🚗</Text>
-      <Text style={styles.actionTitle}>Offer Ride</Text>
-      <Text style={styles.actionSubtitle}>Share your trip</Text>
-    </TouchableOpacity>
+    <TouchableOpacity 
+  style={styles.actionCard}
+  onPress={() => navigation.navigate('PostRide')}
+>
+  <Text style={styles.actionIcon}>🚗</Text>
+  <Text style={styles.actionTitle}>Offer Ride</Text>
+  <Text style={styles.actionSubtitle}>Share your trip</Text>
+</TouchableOpacity>
 
     <TouchableOpacity 
       style={styles.actionCard}

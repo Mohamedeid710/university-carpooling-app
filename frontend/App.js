@@ -17,6 +17,8 @@ import RatingScreen from './src/screens/RatingScreen';
 import DriverDocumentsScreen from './src/screens/DriverDocumentsScreen';
 import VehicleInfoScreen from './src/screens/VehicleInfoScreen';
 import DriverModeScreen from './src/screens/DriverModeScreen';
+import PostRideScreen from './src/screens/PostRideScreen';
+
 
 
 
@@ -52,6 +54,7 @@ export default function App() {
     <Stack.Screen name="DriverDocuments" component={DriverDocumentsScreen} />
     <Stack.Screen name="VehicleInfo" component={VehicleInfoScreen} />
     <Stack.Screen name="DriverMode" component={DriverModeScreen} />
+    <Stack.Screen name="PostRide" component={PostRideScreen} />
   </>
 ) : (
           // User is not signed in
