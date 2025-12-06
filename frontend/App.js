@@ -15,6 +15,7 @@ import RideDetailsScreen from './src/screens/RideDetailsScreen';
 import RideConfirmationScreen from './src/screens/RideConfirmationScreen';
 import RatingScreen from './src/screens/RatingScreen';
 import DriverDocumentsScreen from './src/screens/DriverDocumentsScreen';
+import VehicleInfoScreen from './src/screens/VehicleInfoScreen';
 
 
 
@@ -48,6 +49,7 @@ export default function App() {
     <Stack.Screen name="RideConfirmation" component={RideConfirmationScreen} />
     <Stack.Screen name="Rating" component={RatingScreen} />
     <Stack.Screen name="DriverDocuments" component={DriverDocumentsScreen} />
+    <Stack.Screen name="VehicleInfo" component={VehicleInfoScreen} />
   </>
 ) : (
           // User is not signed in

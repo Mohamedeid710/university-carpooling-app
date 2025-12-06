@@ -114,16 +114,8 @@ export default function DriverDocumentsScreen({ navigation }) {
 
       await updateDoc(doc(db, 'users', user.uid), driverData);
 
-      Alert.alert(
-        'Documents Submitted!',
-        'Your documents have been submitted for verification. You will be notified once verified.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Home'),
-          },
-        ]
-      );
+     // Navigate to vehicle info screen
+navigation.navigate('VehicleInfo');
     } catch (error) {
       console.error('Error submitting documents:', error);
       Alert.alert('Submission Failed', error.message);
