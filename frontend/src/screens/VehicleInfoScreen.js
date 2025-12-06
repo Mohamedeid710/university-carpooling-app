@@ -82,16 +82,8 @@ export default function VehicleInfoScreen({ navigation }) {
 
       await updateDoc(doc(db, 'users', user.uid), vehicleData);
 
-      Alert.alert(
-        'Registration Complete!',
-        'Your driver registration is complete. Your documents will be reviewed within 24-48 hours.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Home'),
-          },
-        ]
-      );
+      navigation.navigate('DriverMode');
+
     } catch (error) {
       console.error('Error submitting vehicle info:', error);
       Alert.alert('Submission Failed', error.message);
