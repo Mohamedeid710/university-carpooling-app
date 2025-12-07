@@ -23,21 +23,21 @@ export default function DriverModeScreen({ navigation }) {
     {
       id: 'female-only',
       name: 'Female only $$',
-      icon: '🚗',
+      icon: 'female',
       description: 'Women-only rides',
       priceLevel: 2,
     },
     {
       id: 'comfort',
       name: 'Comfort $$',
-      icon: '🚙',
+      icon: 'car-sport',
       description: 'Standard comfortable rides',
       priceLevel: 2,
     },
     {
       id: 'shared',
       name: 'Shared $',
-      icon: '🚗',
+      icon: 'car',
       description: 'Shared rides with multiple passengers',
       priceLevel: 1,
     },
@@ -85,8 +85,10 @@ export default function DriverModeScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2C3E50" />
+          <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Driver Mode</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -102,19 +104,30 @@ export default function DriverModeScreen({ navigation }) {
                 selectedMode === type.id && styles.optionCardSelected,
               ]}
               onPress={() => setSelectedMode(type.id)}
+              activeOpacity={0.8}
             >
               <View style={styles.carIconContainer}>
-                <Text style={styles.carIcon}>{type.icon}</Text>
+                <Ionicons name={type.icon} size={40} color={selectedMode === type.id ? '#FFFFFF' : '#5B9FAD'} />
               </View>
               <View style={styles.optionInfo}>
-                <Text style={styles.optionName}>{type.name}</Text>
+                <Text style={[
+                  styles.optionName,
+                  selectedMode === type.id && styles.optionNameSelected
+                ]}>
+                  {type.name}
+                </Text>
                 {type.description && (
-                  <Text style={styles.optionDescription}>{type.description}</Text>
+                  <Text style={[
+                    styles.optionDescription,
+                    selectedMode === type.id && styles.optionDescriptionSelected
+                  ]}>
+                    {type.description}
+                  </Text>
                 )}
               </View>
               <View style={styles.radioButton}>
                 {selectedMode === type.id && (
-                  <View style={styles.radioButtonInner} />
+                  <Ionicons name="checkmark-circle" size={28} color="#FFFFFF" />
                 )}
               </View>
             </TouchableOpacity>
@@ -140,7 +153,10 @@ export default function DriverModeScreen({ navigation }) {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.nextButtonText}>Next</Text>
+            <>
+              <Text style={styles.nextButtonText}>Complete Registration</Text>
+              <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+            </>
           )}
         </TouchableOpacity>
       </View>
@@ -151,12 +167,23 @@ export default function DriverModeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1A1A2E',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2C2C3E',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   content: {
     flex: 1,
@@ -165,8 +192,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    marginTop: 20,
     marginBottom: 30,
+    fontFamily: 'System',
   },
   optionsContainer: {
     gap: 15,
@@ -174,27 +203,24 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#2C2C3E',
     padding: 20,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: '#3A3A4E',
   },
   optionCardSelected: {
-    backgroundColor: '#E8F5F7',
+    backgroundColor: '#5B9FAD',
     borderColor: '#5B9FAD',
   },
   carIconContainer: {
     width: 70,
     height: 70,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 15,
-  },
-  carIcon: {
-    fontSize: 40,
   },
   optionInfo: {
     flex: 1,
@@ -202,60 +228,71 @@ const styles = StyleSheet.create({
   optionName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'System',
+  },
+  optionNameSelected: {
+    color: '#FFFFFF',
   },
   optionDescription: {
     fontSize: 13,
     color: '#7F8C8D',
+    fontFamily: 'System',
+  },
+  optionDescriptionSelected: {
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   radioButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#5B9FAD',
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioButtonInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#5B9FAD',
-  },
   infoBox: {
     flexDirection: 'row',
-    backgroundColor: '#E8F5F7',
+    backgroundColor: 'rgba(91, 159, 173, 0.1)',
     padding: 15,
     borderRadius: 12,
     gap: 10,
     marginTop: 20,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#5B9FAD',
   },
   infoText: {
     flex: 1,
     fontSize: 13,
     color: '#5B9FAD',
     lineHeight: 18,
+    fontFamily: 'System',
   },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: '#2C2C3E',
   },
   nextButton: {
-    backgroundColor: '#000000',
+    backgroundColor: '#5B9FAD',
+    flexDirection: 'row',
     paddingVertical: 18,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#5B9FAD',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   nextButtonDisabled: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: '#3A3A4E',
   },
   nextButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'System',
   },
 });

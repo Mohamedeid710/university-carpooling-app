@@ -16,7 +16,7 @@ export default function RideHistoryScreen({ navigation }) {
   const [rides, setRides] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('offered'); // 'offered' or 'taken'
+  const [activeTab, setActiveTab] = useState('offered');
 
   const user = auth.currentUser;
 
@@ -27,7 +27,6 @@ export default function RideHistoryScreen({ navigation }) {
   const loadRideHistory = async () => {
     setLoading(true);
     try {
-      // Load rides offered by user (as driver)
       const ridesQuery = query(
         collection(db, 'rides'),
         where('driverId', '==', user.uid),
@@ -39,7 +38,6 @@ export default function RideHistoryScreen({ navigation }) {
         ...doc.data(),
       }));
 
-      // Load rides taken by user (as rider)
       const bookingsQuery = query(
         collection(db, 'bookings'),
         where('riderId', '==', user.uid),
@@ -88,27 +86,24 @@ export default function RideHistoryScreen({ navigation }) {
     return (
       <TouchableOpacity style={styles.rideCard}>
         <View style={styles.rideCardContent}>
-          {/* Pickup Location */}
           <View style={styles.locationRow}>
-            <Ionicons name="location" size={20} color="#2C3E50" />
+            <Ionicons name="location" size={20} color="#5B9FAD" />
             <Text style={styles.locationText}>{ride.pickupLocation}</Text>
-            <Text style={styles.priceText}>BD {cost || 0}</Text>
+            <Text style={styles.priceText}>{cost || 0} BHD</Text>
           </View>
 
-          {/* Destination */}
           <View style={styles.locationRow}>
-            <Ionicons name="navigate" size={20} color="#E74C3C" />
+            <Ionicons name="navigate" size={20} color="#5B9FAD" />
             <Text style={styles.locationText}>{ride.destination}</Text>
           </View>
 
-          {/* Date and Time */}
           <View style={styles.dateTimeRow}>
+            <Ionicons name="calendar-outline" size={16} color="#7F8C8D" />
             <Text style={styles.dateTimeText}>
               {formatDate(departureDate)} - {formatTime(departureDate)}
             </Text>
           </View>
 
-          {/* Status Badge */}
           <View style={styles.statusRow}>
             <View style={[
               styles.statusBadge,
@@ -133,7 +128,7 @@ export default function RideHistoryScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2C3E50" />
+          <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ride History</Text>
         <View style={{ width: 24 }} />
@@ -174,7 +169,7 @@ export default function RideHistoryScreen({ navigation }) {
               ))
             ) : (
               <View style={styles.emptyContainer}>
-                <Ionicons name="car-outline" size={60} color="#CCCCCC" />
+                <Ionicons name="car-outline" size={60} color="#3A3A4E" />
                 <Text style={styles.emptyText}>No rides offered yet</Text>
                 <Text style={styles.emptySubtext}>
                   Start offering rides to build your history
@@ -188,7 +183,7 @@ export default function RideHistoryScreen({ navigation }) {
               ))
             ) : (
               <View style={styles.emptyContainer}>
-                <Ionicons name="search-outline" size={60} color="#CCCCCC" />
+                <Ionicons name="search-outline" size={60} color="#3A3A4E" />
                 <Text style={styles.emptyText}>No rides taken yet</Text>
                 <Text style={styles.emptySubtext}>
                   Book a ride to see your history here
@@ -196,38 +191,8 @@ export default function RideHistoryScreen({ navigation }) {
               </View>
             )
           )}
-
-          {/* More Button */}
-          {((activeTab === 'offered' && rides.length > 0) || 
-            (activeTab === 'taken' && bookings.length > 0)) && (
-            <TouchableOpacity style={styles.moreButton}>
-              <Text style={styles.moreButtonText}>More</Text>
-              <Ionicons name="chevron-forward" size={16} color="#7F8C8D" />
-            </TouchableOpacity>
-          )}
         </ScrollView>
       )}
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Ionicons name="home-outline" size={24} color="#7F8C8D" />
-          <Text style={[styles.navText, { color: '#7F8C8D' }]}>Home</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="time" size={24} color="#2C3E50" />
-          <Text style={styles.navText}>History</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="person-outline" size={24} color="#7F8C8D" />
-          <Text style={[styles.navText, { color: '#7F8C8D' }]}>Account</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -235,7 +200,7 @@ export default function RideHistoryScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#1A1A2E',
   },
   header: {
     flexDirection: 'row',
@@ -244,18 +209,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#2C2C3E',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2C2C3E',
     paddingHorizontal: 20,
     paddingTop: 10,
     gap: 10,
@@ -274,6 +239,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#7F8C8D',
     fontWeight: '500',
+    fontFamily: 'System',
   },
   tabTextActive: {
     color: '#5B9FAD',
@@ -289,15 +255,12 @@ const styles = StyleSheet.create({
     paddingTop: 15,
   },
   rideCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2C2C3E',
     marginHorizontal: 20,
     marginBottom: 15,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#3A3A4E',
   },
   rideCardContent: {
     padding: 16,
@@ -311,21 +274,27 @@ const styles = StyleSheet.create({
   locationText: {
     flex: 1,
     fontSize: 15,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     fontWeight: '500',
+    fontFamily: 'System',
   },
   priceText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#5B9FAD',
+    fontFamily: 'System',
   },
   dateTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginTop: 5,
     marginBottom: 10,
   },
   dateTimeText: {
     fontSize: 13,
     color: '#7F8C8D',
+    fontFamily: 'System',
   },
   statusRow: {
     flexDirection: 'row',
@@ -337,18 +306,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusActive: {
-    backgroundColor: '#E8F5F7',
+    backgroundColor: 'rgba(91, 159, 173, 0.2)',
+    borderWidth: 1,
+    borderColor: '#5B9FAD',
   },
   statusCompleted: {
-    backgroundColor: '#E8F7ED',
+    backgroundColor: 'rgba(46, 204, 113, 0.2)',
+    borderWidth: 1,
+    borderColor: '#2ECC71',
   },
   statusCancelled: {
-    backgroundColor: '#FFE8E8',
+    backgroundColor: 'rgba(231, 76, 60, 0.2)',
+    borderWidth: 1,
+    borderColor: '#E74C3C',
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -359,43 +335,15 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginTop: 20,
     marginBottom: 8,
+    fontFamily: 'System',
   },
   emptySubtext: {
     fontSize: 14,
     color: '#7F8C8D',
     textAlign: 'center',
-  },
-  moreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 15,
-    marginBottom: 20,
-    gap: 5,
-  },
-  moreButtonText: {
-    fontSize: 15,
-    color: '#7F8C8D',
-    fontWeight: '500',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  navItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  navText: {
-    fontSize: 12,
-    color: '#2C3E50',
-    fontWeight: '500',
+    fontFamily: 'System',
   },
 });

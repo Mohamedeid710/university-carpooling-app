@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SignInScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -28,7 +29,6 @@ export default function SignInScreen({ navigation }) {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Navigation to Home will happen automatically via auth state listener
     } catch (error) {
       Alert.alert('Sign In Failed', error.message);
     } finally {
@@ -41,29 +41,43 @@ export default function SignInScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      {/* Back Button */}
+      <TouchableOpacity 
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
+      </TouchableOpacity>
+
       <View style={styles.content}>
         <Text style={styles.title}>Welcome Back!</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
 
         <View style={styles.formContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholderTextColor="#999"
-          />
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={20} color="#5B9FAD" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#7F8C8D"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor="#999"
-          />
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color="#5B9FAD" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#7F8C8D"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
           <TouchableOpacity 
             style={styles.signInButton}
@@ -91,35 +105,54 @@ export default function SignInScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1A1A2E',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    zIndex: 10,
+    padding: 8,
   },
   content: {
     flex: 1,
     paddingHorizontal: 30,
-    paddingTop: 100,
+    paddingTop: 120,
   },
   title: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginBottom: 10,
+    fontFamily: 'System',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#7F8C8D',
     marginBottom: 50,
+    fontFamily: 'System',
   },
   formContainer: {
     gap: 20,
   },
-  input: {
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2C2C3E',
     borderRadius: 12,
-    fontSize: 16,
+    paddingHorizontal: 15,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#3A3A4E',
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 18,
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   signInButton: {
     backgroundColor: '#5B9FAD',
@@ -127,17 +160,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
+    shadowColor: '#5B9FAD',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   signInButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+    fontFamily: 'System',
   },
   linkText: {
     textAlign: 'center',
     color: '#7F8C8D',
     fontSize: 14,
     marginTop: 20,
+    fontFamily: 'System',
   },
   linkBold: {
     color: '#5B9FAD',

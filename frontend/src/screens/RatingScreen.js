@@ -15,7 +15,7 @@ import { collection, addDoc, doc, updateDoc, getDocs, query, where } from 'fireb
 import { db, auth } from '../config/firebase';
 
 export default function RatingScreen({ navigation, route }) {
-  const { booking } = route.params; // Pass booking data from previous screen
+  const { booking } = route.params;
   const [rating, setRating] = useState(0);
   const [selectedIssues, setSelectedIssues] = useState([]);
   const [otherComment, setOtherComment] = useState('');
@@ -58,7 +58,6 @@ export default function RatingScreen({ navigation, route }) {
     setLoading(true);
 
     try {
-      // Check if already rated
       const existingRating = await getDocs(
         query(
           collection(db, 'ratings'),
@@ -73,22 +72,19 @@ export default function RatingScreen({ navigation, route }) {
         return;
       }
 
-      // Combine issues and other comment
       const feedbackComment = selectedIssues.length > 0 
         ? `Issues: ${selectedIssues.join(', ')}${otherComment ? `. Other: ${otherComment}` : ''}`
         : otherComment || 'Good ride';
 
-      // Add rating to Firestore
       await addDoc(collection(db, 'ratings'), {
         bookingId: booking.id,
         raterId: user.uid,
-        ratedUserId: booking.driverId, // Rating the driver
+        ratedUserId: booking.driverId,
         rating: rating,
         comment: feedbackComment,
         createdAt: new Date().toISOString(),
       });
 
-      // Get all ratings for this driver to calculate average
       const driverRatings = await getDocs(
         query(collection(db, 'ratings'), where('ratedUserId', '==', booking.driverId))
       );
@@ -103,13 +99,11 @@ export default function RatingScreen({ navigation, route }) {
 
       const averageRating = totalRating / count;
 
-      // Update driver's average rating
       await updateDoc(doc(db, 'users', booking.driverId), {
         averageRating: parseFloat(averageRating.toFixed(2)),
         totalRatings: count,
       });
 
-      // Mark booking as rated
       await updateDoc(doc(db, 'bookings', booking.id), {
         rated: true,
       });
@@ -133,9 +127,9 @@ export default function RatingScreen({ navigation, route }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2C3E50" />
+          <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Rating</Text>
+        <Text style={styles.headerTitle}>Rate Your Ride</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -160,7 +154,7 @@ export default function RatingScreen({ navigation, route }) {
                 <Ionicons
                   name={star <= rating ? 'star' : 'star-outline'}
                   size={50}
-                  color={star <= rating ? '#000000' : '#D1D1D1'}
+                  color={star <= rating ? '#FFD700' : '#3A3A4E'}
                 />
               </TouchableOpacity>
             ))}
@@ -197,15 +191,15 @@ export default function RatingScreen({ navigation, route }) {
 
             {/* Other Comment */}
             <View style={styles.otherSection}>
-              <Text style={styles.otherLabel}>other:</Text>
+              <Text style={styles.otherLabel}>Additional comments:</Text>
               <TextInput
                 style={styles.otherInput}
                 placeholder="Type here..."
+                placeholderTextColor="#7F8C8D"
                 value={otherComment}
                 onChangeText={setOtherComment}
                 multiline
                 numberOfLines={3}
-                placeholderTextColor="#999"
               />
             </View>
           </View>
@@ -218,11 +212,11 @@ export default function RatingScreen({ navigation, route }) {
             <TextInput
               style={styles.commentInput}
               placeholder="Share your experience..."
+              placeholderTextColor="#7F8C8D"
               value={otherComment}
               onChangeText={setOtherComment}
               multiline
               numberOfLines={4}
-              placeholderTextColor="#999"
             />
           </View>
         )}
@@ -231,36 +225,18 @@ export default function RatingScreen({ navigation, route }) {
       {/* Submit Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[styles.submitButton, rating === 0 && styles.submitButtonDisabled]}
           onPress={handleSubmit}
           disabled={loading || rating === 0}
         >
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Submit</Text>
+            <>
+              <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.submitButtonText}>Submit Rating</Text>
+            </>
           )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Ionicons name="home" size={24} color="#2C3E50" />
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="time-outline" size={24} color="#7F8C8D" />
-          <Text style={[styles.navText, { color: '#7F8C8D' }]}>History</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="person-outline" size={24} color="#7F8C8D" />
-          <Text style={[styles.navText, { color: '#7F8C8D' }]}>Account</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -270,7 +246,7 @@ export default function RatingScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1A1A2E',
   },
   header: {
     flexDirection: 'row',
@@ -280,12 +256,13 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#2C2C3E',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   content: {
     flex: 1,
@@ -293,13 +270,19 @@ const styles = StyleSheet.create({
   ratingSection: {
     alignItems: 'center',
     paddingVertical: 40,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2C2C3E',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#3A3A4E',
   },
   ratingLabel: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginBottom: 30,
+    fontFamily: 'System',
   },
   starsContainer: {
     flexDirection: 'row',
@@ -311,21 +294,19 @@ const styles = StyleSheet.create({
   issuesSection: {
     paddingHorizontal: 20,
     paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginBottom: 8,
-    textAlign: 'center',
+    fontFamily: 'System',
   },
   sectionSubtitle: {
     fontSize: 14,
     color: '#7F8C8D',
     marginBottom: 20,
-    textAlign: 'center',
+    fontFamily: 'System',
   },
   issuesGrid: {
     flexDirection: 'row',
@@ -334,21 +315,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   issueButton: {
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 14,
+    backgroundColor: '#2C2C3E',
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#3A3A4E',
   },
   issueButtonSelected: {
-    backgroundColor: '#000000',
-    borderColor: '#000000',
+    backgroundColor: '#5B9FAD',
+    borderColor: '#5B9FAD',
   },
   issueButtonText: {
     fontSize: 14,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     fontWeight: '500',
+    fontFamily: 'System',
   },
   issueButtonTextSelected: {
     color: '#FFFFFF',
@@ -358,68 +340,66 @@ const styles = StyleSheet.create({
   },
   otherLabel: {
     fontSize: 16,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginBottom: 10,
+    fontFamily: 'System',
   },
   otherInput: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#2C2C3E',
     borderRadius: 12,
     padding: 15,
     fontSize: 15,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#3A3A4E',
     minHeight: 80,
     textAlignVertical: 'top',
+    fontFamily: 'System',
   },
   commentSection: {
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
   commentInput: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#2C2C3E',
     borderRadius: 12,
     padding: 15,
     fontSize: 15,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#3A3A4E',
     minHeight: 100,
     textAlignVertical: 'top',
     marginTop: 10,
+    fontFamily: 'System',
   },
   footer: {
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: '#2C2C3E',
   },
   submitButton: {
-    backgroundColor: '#000000',
+    backgroundColor: '#5B9FAD',
+    flexDirection: 'row',
     paddingVertical: 18,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#5B9FAD',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#3A3A4E',
   },
   submitButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  navItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  navText: {
-    fontSize: 12,
-    color: '#2C3E50',
-    fontWeight: '500',
+    fontFamily: 'System',
   },
 });

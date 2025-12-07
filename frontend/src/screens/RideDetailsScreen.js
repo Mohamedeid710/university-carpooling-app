@@ -1,4 +1,4 @@
-/// src/screens/RideDetailsScreen.js
+// src/screens/RideDetailsScreen.js
 import React from 'react';
 import {
   View,
@@ -23,7 +23,7 @@ export default function RideDetailsScreen({ navigation, route }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ride Details</Text>
         <View style={{ width: 24 }} />
@@ -41,9 +41,12 @@ export default function RideDetailsScreen({ navigation, route }) {
             </View>
             <View style={styles.driverDetails}>
               <Text style={styles.driverName}>{ride.driverName || 'Driver'}</Text>
-              <Text style={styles.driverRating}>
-                ⭐ {ride.driverRating?.toFixed(1) || 'New Driver'} ({ride.totalRides || 0} rides)
-              </Text>
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={16} color="#FFD700" />
+                <Text style={styles.driverRating}>
+                  {ride.driverRating?.toFixed(1) || 'New Driver'} ({ride.totalRides || 0} rides)
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -80,7 +83,7 @@ export default function RideDetailsScreen({ navigation, route }) {
           </View>
 
           <View style={styles.detailRow}>
-            <Ionicons name="navigate-outline" size={20} color="#E74C3C" />
+            <Ionicons name="navigate-outline" size={20} color="#5B9FAD" />
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Destination</Text>
               <Text style={styles.detailValue}>{ride.destination}</Text>
@@ -88,7 +91,7 @@ export default function RideDetailsScreen({ navigation, route }) {
           </View>
 
           <View style={styles.detailRow}>
-            <Ionicons name="people-outline" size={20} color="#F39C12" />
+            <Ionicons name="people-outline" size={20} color="#5B9FAD" />
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Available Seats</Text>
               <Text style={styles.detailValue}>{ride.availableSeats} seats</Text>
@@ -97,7 +100,7 @@ export default function RideDetailsScreen({ navigation, route }) {
 
           {ride.notes && (
             <View style={styles.detailRow}>
-              <Ionicons name="information-circle-outline" size={20} color="#7F8C8D" />
+              <Ionicons name="information-circle-outline" size={20} color="#5B9FAD" />
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Additional Notes</Text>
                 <Text style={styles.detailValue}>{ride.notes}</Text>
@@ -118,7 +121,7 @@ export default function RideDetailsScreen({ navigation, route }) {
       {/* Book Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.bookButton}
+          style={[styles.bookButton, ride.availableSeats === 0 && styles.bookButtonDisabled]}
           onPress={handleBookSeat}
           disabled={ride.availableSeats === 0}
         >
@@ -134,7 +137,7 @@ export default function RideDetailsScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#1A1A2E',
   },
   header: {
     flexDirection: 'row',
@@ -143,33 +146,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    backgroundColor: '#5B9FAD',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2C2C3E',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    fontFamily: 'System',
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2C2C3E',
     borderRadius: 16,
     padding: 20,
     marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#3A3A4E',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginBottom: 16,
+    fontFamily: 'System',
   },
   driverSection: {
     flexDirection: 'row',
@@ -188,6 +191,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 28,
     fontWeight: 'bold',
+    fontFamily: 'System',
   },
   driverDetails: {
     flex: 1,
@@ -195,12 +199,19 @@ const styles = StyleSheet.create({
   driverName: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
   },
   driverRating: {
     fontSize: 14,
     color: '#7F8C8D',
-    marginTop: 4,
+    fontFamily: 'System',
   },
   detailRow: {
     flexDirection: 'row',
@@ -214,11 +225,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#7F8C8D',
     marginBottom: 4,
+    fontFamily: 'System',
   },
   detailValue: {
     fontSize: 16,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     fontWeight: '500',
+    fontFamily: 'System',
   },
   priceRow: {
     flexDirection: 'row',
@@ -227,29 +240,39 @@ const styles = StyleSheet.create({
   },
   priceLabel: {
     fontSize: 16,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     fontWeight: '500',
+    fontFamily: 'System',
   },
   priceValue: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#5B9FAD',
+    fontFamily: 'System',
   },
   footer: {
     padding: 20,
-    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: '#2C2C3E',
   },
   bookButton: {
     backgroundColor: '#5B9FAD',
     paddingVertical: 18,
     borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#5B9FAD',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  bookButtonDisabled: {
+    backgroundColor: '#3A3A4E',
   },
   bookButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+    fontFamily: 'System',
   },
 });

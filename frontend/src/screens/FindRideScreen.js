@@ -1,5 +1,5 @@
 // src/screens/FindRideScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -21,6 +21,23 @@ export default function FindRideScreen({ navigation }) {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [userGender, setUserGender] = useState('');
+
+  const user = auth.currentUser;
+
+  useEffect(() => {
+    loadUserGender();
+  }, []);
+
+  const loadUserGender = async () => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userData = userDoc.data();
+      setUserGender(userData?.gender || '');
+    } catch (error) {
+      console.error('Error loading user gender:', error);
+    }
+  };
 
   const handleSearch = async () => {
     if (!pickupLocation || !destination) {
@@ -32,7 +49,6 @@ export default function FindRideScreen({ navigation }) {
     setSearched(true);
 
     try {
-      // Query available rides from Firestore
       const ridesRef = collection(db, 'rides');
       const q = query(
         ridesRef,
@@ -43,10 +59,15 @@ export default function FindRideScreen({ navigation }) {
       const querySnapshot = await getDocs(q);
       const rides = [];
 
-      querySnapshot.forEach((doc) => {
-        const rideData = doc.data();
+      querySnapshot.forEach((docSnap) => {
+        const rideData = docSnap.data();
         
-        // Simple matching logic - check if pickup/destination contain search terms
+        // Check if ride is female-only and user is not female
+        if (rideData.rideType === 'female-only' && userGender !== 'female') {
+          return; // Skip this ride
+        }
+
+        // Simple matching logic
         const pickupMatch = 
           rideData.pickupLocation.toLowerCase().includes(pickupLocation.toLowerCase()) ||
           pickupLocation.toLowerCase().includes(rideData.pickupLocation.toLowerCase());
@@ -57,7 +78,7 @@ export default function FindRideScreen({ navigation }) {
 
         if (pickupMatch && destMatch) {
           rides.push({
-            id: doc.id,
+            id: docSnap.id,
             ...rideData,
           });
         }
@@ -80,12 +101,18 @@ export default function FindRideScreen({ navigation }) {
     navigation.navigate('RideDetails', { ride });
   };
 
+  const getRideTypeIcon = (rideType) => {
+    if (rideType === 'female-only') return 'female';
+    if (rideType === 'comfort') return 'car-sport';
+    return 'car';
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2C3E50" />
+          <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Find a Ride</Text>
         <View style={{ width: 24 }} />
@@ -95,35 +122,35 @@ export default function FindRideScreen({ navigation }) {
         {/* Search Form */}
         <View style={styles.searchCard}>
           <View style={styles.inputContainer}>
-            <Ionicons name="location-outline" size={24} color="#5B9FAD" />
+            <Ionicons name="location" size={24} color="#5B9FAD" />
             <TextInput
               style={styles.input}
-              placeholder="Pickup location (e.g., Downtown, Adliya)"
+              placeholder="Pickup location"
+              placeholderTextColor="#7F8C8D"
               value={pickupLocation}
               onChangeText={setPickupLocation}
-              placeholderTextColor="#999"
             />
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="navigate-outline" size={24} color="#E74C3C" />
+            <Ionicons name="navigate" size={24} color="#5B9FAD" />
             <TextInput
               style={styles.input}
-              placeholder="Destination (e.g., AUBH, City Center)"
+              placeholder="Destination"
+              placeholderTextColor="#7F8C8D"
               value={destination}
               onChangeText={setDestination}
-              placeholderTextColor="#999"
             />
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="time-outline" size={24} color="#F39C12" />
+            <Ionicons name="time" size={24} color="#5B9FAD" />
             <TextInput
               style={styles.input}
-              placeholder="Departure time (optional, e.g., 08:00 AM)"
+              placeholder="Departure time (optional)"
+              placeholderTextColor="#7F8C8D"
               value={departureTime}
               onChangeText={setDepartureTime}
-              placeholderTextColor="#999"
             />
           </View>
 
@@ -155,6 +182,7 @@ export default function FindRideScreen({ navigation }) {
                 key={ride.id}
                 style={styles.rideCard}
                 onPress={() => handleBookRide(ride)}
+                activeOpacity={0.8}
               >
                 <View style={styles.rideHeader}>
                   <View style={styles.driverInfo}>
@@ -165,15 +193,26 @@ export default function FindRideScreen({ navigation }) {
                     </View>
                     <View>
                       <Text style={styles.driverName}>{ride.driverName || 'Driver'}</Text>
-                      <Text style={styles.driverRating}>
-                        ⭐ {ride.driverRating?.toFixed(1) || 'New'} • {ride.totalRides || 0} rides
-                      </Text>
+                      <View style={styles.ratingRow}>
+                        <Ionicons name="star" size={14} color="#FFD700" />
+                        <Text style={styles.driverRating}>
+                          {ride.driverRating?.toFixed(1) || 'New'} • {ride.totalRides || 0} rides
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   <View style={styles.priceTag}>
                     <Text style={styles.priceText}>{ride.estimatedCost || 0} BHD</Text>
                   </View>
                 </View>
+
+                {/* Ride Type Badge */}
+                {ride.rideType === 'female-only' && (
+                  <View style={styles.femaleOnlyBadge}>
+                    <Ionicons name="female" size={14} color="#FF69B4" />
+                    <Text style={styles.femaleOnlyText}>Female Only</Text>
+                  </View>
+                )}
 
                 <View style={styles.routeInfo}>
                   <View style={styles.routeItem}>
@@ -182,7 +221,7 @@ export default function FindRideScreen({ navigation }) {
                   </View>
                   <View style={styles.routeLine} />
                   <View style={styles.routeItem}>
-                    <Ionicons name="location" size={12} color="#E74C3C" />
+                    <Ionicons name="location" size={12} color="#5B9FAD" />
                     <Text style={styles.routeText}>{ride.destination}</Text>
                   </View>
                 </View>
@@ -201,6 +240,10 @@ export default function FindRideScreen({ navigation }) {
                     <Ionicons name="people-outline" size={16} color="#7F8C8D" />
                     <Text style={styles.infoText}>{ride.availableSeats} seats left</Text>
                   </View>
+                  <View style={styles.infoItem}>
+                    <Ionicons name={getRideTypeIcon(ride.rideType)} size={16} color="#7F8C8D" />
+                    <Text style={styles.infoText}>{ride.rideTypeName || 'Standard'}</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             ))}
@@ -214,7 +257,7 @@ export default function FindRideScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#1A1A2E',
   },
   header: {
     flexDirection: 'row',
@@ -223,47 +266,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#2C2C3E',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
   searchCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2C2C3E',
     borderRadius: 16,
     padding: 20,
     marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#3A3A4E',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#1A1A2E',
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 5,
     marginBottom: 15,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#3A3A4E',
   },
   input: {
     flex: 1,
     marginLeft: 10,
     fontSize: 16,
-    color: '#2C3E50',
+    color: '#FFFFFF',
     paddingVertical: 12,
+    fontFamily: 'System',
   },
   searchButton: {
     backgroundColor: '#5B9FAD',
@@ -274,11 +315,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 10,
     gap: 8,
+    shadowColor: '#5B9FAD',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   searchButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'System',
   },
   resultsSection: {
     marginTop: 30,
@@ -287,19 +334,17 @@ const styles = StyleSheet.create({
   resultsTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#FFFFFF',
     marginBottom: 16,
+    fontFamily: 'System',
   },
   rideCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2C2C3E',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#3A3A4E',
   },
   rideHeader: {
     flexDirection: 'row',
@@ -324,27 +369,57 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: 'bold',
+    fontFamily: 'System',
   },
   driverName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
   driverRating: {
     fontSize: 12,
     color: '#7F8C8D',
-    marginTop: 2,
+    fontFamily: 'System',
   },
   priceTag: {
-    backgroundColor: '#E8F5F7',
+    backgroundColor: 'rgba(91, 159, 173, 0.2)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#5B9FAD',
   },
   priceText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#5B9FAD',
+    fontFamily: 'System',
+  },
+  femaleOnlyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 105, 180, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#FF69B4',
+  },
+  femaleOnlyText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF69B4',
+    fontFamily: 'System',
   },
   routeInfo: {
     marginBottom: 16,
@@ -357,20 +432,21 @@ const styles = StyleSheet.create({
   routeLine: {
     width: 2,
     height: 20,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#3A3A4E',
     marginLeft: 5,
     marginVertical: 4,
   },
   routeText: {
     fontSize: 15,
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   rideFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#3A3A4E',
   },
   infoItem: {
     flexDirection: 'row',
@@ -378,7 +454,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   infoText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#7F8C8D',
+    fontFamily: 'System',
   },
 });

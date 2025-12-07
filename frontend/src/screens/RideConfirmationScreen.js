@@ -5,9 +5,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { doc, runTransaction, collection, query, where, getDocs } from 'firebase/firestore';
@@ -32,13 +32,11 @@ export default function RideConfirmationScreen({ navigation, route }) {
     setLoading(true);
 
     try {
-      // Get user data
       const userDoc = await getDocs(
         query(collection(db, 'users'), where('__name__', '==', user.uid))
       );
       const userData = userDoc.docs[0]?.data();
 
-      // Use Firestore transaction
       await runTransaction(db, async (transaction) => {
         const rideRef = doc(db, 'rides', ride.id);
         const rideDoc = await transaction.get(rideRef);
@@ -53,7 +51,6 @@ export default function RideConfirmationScreen({ navigation, route }) {
           throw new Error('No seats available');
         }
 
-        // Check if already booked
         const bookingsSnapshot = await getDocs(
           query(
             collection(db, 'bookings'),
@@ -66,7 +63,6 @@ export default function RideConfirmationScreen({ navigation, route }) {
           throw new Error('You have already booked this ride');
         }
 
-        // Create booking
         const bookingRef = doc(collection(db, 'bookings'));
         transaction.set(bookingRef, {
           rideId: ride.id,
@@ -77,12 +73,12 @@ export default function RideConfirmationScreen({ navigation, route }) {
           pickupLocation: ride.pickupLocation,
           destination: ride.destination,
           departureTime: ride.departureTime,
+          estimatedCost: ride.estimatedCost,
           status: 'confirmed',
           createdAt: new Date().toISOString(),
           rated: false,
         });
 
-        // Update ride
         transaction.update(rideRef, {
           availableSeats: rideData.availableSeats - 1,
         });
@@ -114,77 +110,100 @@ export default function RideConfirmationScreen({ navigation, route }) {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#2C3E50" />
+          <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Welcome, Rider!</Text>
-        <TouchableOpacity style={styles.profileButton}>
-          <Ionicons name="person-circle" size={36} color="#5B9FAD" />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Confirm Booking</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      {/* Location Info */}
-      <View style={styles.locationSection}>
-        <View style={styles.locationHeader}>
-          <Ionicons name="location" size={24} color="#2C3E50" />
-          <Text style={styles.locationTitle}>Your current location</Text>
-        </View>
-        <TouchableOpacity style={styles.locationDropdown}>
-          <Text style={styles.locationText}>{ride.pickupLocation}</Text>
-          <Ionicons name="chevron-down" size={20} color="#7F8C8D" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Map Placeholder */}
-      <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}>
-          <Ionicons name="map" size={60} color="#5B9FAD" />
-          <Text style={styles.mapText}>Map View</Text>
-          <Text style={styles.mapSubtext}>
-            From: {ride.pickupLocation}
-          </Text>
-        </View>
-      </View>
-
-      {/* Destination */}
-      <View style={styles.destinationSection}>
-        <Ionicons name="navigate" size={24} color="#2C3E50" />
-        <View style={styles.destinationInfo}>
-          <Text style={styles.destinationLabel}>Where do you wanna go?</Text>
-          <Text style={styles.destinationText}>{ride.destination}</Text>
-        </View>
-      </View>
-
-      {/* Ride Type Section */}
-      <View style={styles.rideTypeSection}>
-        <Text style={styles.sectionTitle}>chosen ride type:</Text>
-        
-        <View style={styles.rideTypeCard}>
-          <View style={styles.carImageContainer}>
-            <Text style={styles.carEmoji}>🚗</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Location Info */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="location" size={24} color="#5B9FAD" />
+            <Text style={styles.cardTitle}>Trip Details</Text>
           </View>
-          <Text style={styles.rideTypeName}>Comfort $$</Text>
-        </View>
+          
+          <View style={styles.locationRow}>
+            <Ionicons name="ellipse" size={12} color="#5B9FAD" />
+            <View style={styles.locationInfo}>
+              <Text style={styles.locationLabel}>Pickup</Text>
+              <Text style={styles.locationText}>{ride.pickupLocation}</Text>
+            </View>
+          </View>
 
-        <View style={styles.rideInfoRow}>
-          <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={18} color="#7F8C8D" />
-            <Text style={styles.infoText}>
-              {new Date(ride.departureTime).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="people-outline" size={18} color="#7F8C8D" />
-            <Text style={styles.infoText}>{ride.availableSeats} seats available</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="cash-outline" size={18} color="#7F8C8D" />
-            <Text style={styles.infoText}>{ride.estimatedCost || 0} BHD</Text>
+          <View style={styles.routeLine} />
+
+          <View style={styles.locationRow}>
+            <Ionicons name="location" size={12} color="#5B9FAD" />
+            <View style={styles.locationInfo}>
+              <Text style={styles.locationLabel}>Destination</Text>
+              <Text style={styles.locationText}>{ride.destination}</Text>
+            </View>
           </View>
         </View>
-      </View>
+
+        {/* Ride Type Section */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Ride Information</Text>
+          
+          <View style={styles.rideTypeCard}>
+            <View style={styles.carIconContainer}>
+              <Ionicons name="car-sport" size={40} color="#5B9FAD" />
+            </View>
+            <Text style={styles.rideTypeName}>{ride.rideTypeName || 'Standard Ride'}</Text>
+          </View>
+
+          <View style={styles.rideInfoRow}>
+            <View style={styles.infoItem}>
+              <Ionicons name="time-outline" size={18} color="#5B9FAD" />
+              <Text style={styles.infoText}>
+                {new Date(ride.departureTime).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="people-outline" size={18} color="#5B9FAD" />
+              <Text style={styles.infoText}>{ride.availableSeats} seats available</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="cash-outline" size={18} color="#5B9FAD" />
+              <Text style={styles.infoText}>{ride.estimatedCost || 0} BHD</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Driver Info */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Your Driver</Text>
+          <View style={styles.driverSection}>
+            <View style={styles.driverAvatar}>
+              <Text style={styles.driverInitial}>
+                {ride.driverName?.charAt(0).toUpperCase() || 'D'}
+              </Text>
+            </View>
+            <View style={styles.driverDetails}>
+              <Text style={styles.driverName}>{ride.driverName || 'Driver'}</Text>
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={16} color="#FFD700" />
+                <Text style={styles.driverRating}>
+                  {ride.driverRating?.toFixed(1) || 'New'} • {ride.totalRides || 0} rides
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Price Summary */}
+        <View style={styles.priceCard}>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>Total Price</Text>
+            <Text style={styles.priceValue}>{ride.estimatedCost || 0} BHD</Text>
+          </View>
+        </View>
+      </ScrollView>
 
       {/* Confirm Button */}
       <View style={styles.footer}>
@@ -196,29 +215,11 @@ export default function RideConfirmationScreen({ navigation, route }) {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.confirmButtonText}>Confirm pick-up</Text>
+            <>
+              <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.confirmButtonText}>Confirm Booking</Text>
+            </>
           )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Ionicons name="home" size={24} color="#2C3E50" />
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="time-outline" size={24} color="#7F8C8D" />
-          <Text style={[styles.navText, { color: '#7F8C8D' }]}>History</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="person-outline" size={24} color="#7F8C8D" />
-          <Text style={[styles.navText, { color: '#7F8C8D' }]}>Account</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -228,7 +229,7 @@ export default function RideConfirmationScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#1A1A2E',
   },
   header: {
     flexDirection: 'row',
@@ -237,7 +238,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2C2C3E',
   },
   backButton: {
     padding: 5,
@@ -245,127 +247,94 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
-  profileButton: {
-    padding: 5,
-  },
-  locationSection: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  locationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  locationTitle: {
-    fontSize: 14,
-    color: '#7F8C8D',
-  },
-  locationDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  locationText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2C3E50',
-  },
-  mapContainer: {
-    height: 250,
-    backgroundColor: '#E8F5F7',
-    margin: 20,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  mapPlaceholder: {
+  content: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E8F5F7',
+    paddingHorizontal: 20,
   },
-  mapText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#5B9FAD',
-    marginTop: 10,
+  card: {
+    backgroundColor: '#2C2C3E',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#3A3A4E',
   },
-  mapSubtext: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    marginTop: 5,
-  },
-  destinationSection: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    marginHorizontal: 20,
-    borderRadius: 12,
     gap: 12,
     marginBottom: 20,
   },
-  destinationInfo: {
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  locationInfo: {
     flex: 1,
   },
-  destinationLabel: {
-    fontSize: 14,
+  locationLabel: {
+    fontSize: 12,
     color: '#7F8C8D',
     marginBottom: 4,
+    fontFamily: 'System',
   },
-  destinationText: {
+  locationText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
-  rideTypeSection: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 20,
+  routeLine: {
+    width: 2,
+    height: 30,
+    backgroundColor: '#3A3A4E',
+    marginLeft: 5,
+    marginVertical: 8,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#2C3E50',
-    marginBottom: 20,
-    textAlign: 'center',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    fontFamily: 'System',
   },
   rideTypeCard: {
     alignItems: 'center',
     marginBottom: 20,
   },
-  carImageContainer: {
-    width: 120,
-    height: 80,
-    backgroundColor: '#F5F5F5',
+  carIconContainer: {
+    width: 100,
+    height: 70,
+    backgroundColor: 'rgba(91, 159, 173, 0.1)',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-  },
-  carEmoji: {
-    fontSize: 60,
+    borderWidth: 1,
+    borderColor: '#5B9FAD',
   },
   rideTypeName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#2C3E50',
+    color: '#FFFFFF',
+    fontFamily: 'System',
   },
   rideInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingTop: 15,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: '#3A3A4E',
   },
   infoItem: {
     flexDirection: 'row',
@@ -374,38 +343,98 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  driverSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  driverAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#5B9FAD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  driverInitial: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    fontFamily: 'System',
+  },
+  driverDetails: {
+    flex: 1,
+  },
+  driverName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  driverRating: {
+    fontSize: 14,
     color: '#7F8C8D',
+    fontFamily: 'System',
+  },
+  priceCard: {
+    backgroundColor: '#2C2C3E',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 20,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#5B9FAD',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priceLabel: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    fontFamily: 'System',
+  },
+  priceValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#5B9FAD',
+    fontFamily: 'System',
   },
   footer: {
     paddingHorizontal: 20,
     paddingVertical: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#2C2C3E',
   },
   confirmButton: {
-    backgroundColor: '#000000',
+    backgroundColor: '#5B9FAD',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 18,
     borderRadius: 12,
-    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#5B9FAD',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   confirmButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  navItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  navText: {
-    fontSize: 12,
-    color: '#2C3E50',
-    fontWeight: '500',
+    fontFamily: 'System',
   },
 });
