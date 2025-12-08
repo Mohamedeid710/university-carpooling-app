@@ -1,11 +1,9 @@
 // src/config/firebase.js
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getFirestore } from "firebase/firestore";
 
-// Your Firebase configuration
-// Get this from: https://console.firebase.google.com/u/1/project/routemate-carpooling-app/settings/general
 const firebaseConfig = {
   apiKey: "AIzaSyBBFa79b9c61WjG6Fa5ua1Sbqt6vsBkAKU",
   authDomain: "routemate-carpooling-app.firebaseapp.com",
@@ -13,15 +11,15 @@ const firebaseConfig = {
   storageBucket: "routemate-carpooling-app.firebasestorage.app",
   messagingSenderId: "210751096380",
   appId: "1:210751096380:web:3e447f97211fbd185ca539",
-  measurementId: "G-FEWC0PF0V5"
+  measurementId: "G-FEWC0PF0V5",
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const functions = getFunctions(app);
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
 
-export default app;
+const db = getFirestore(app);
+
+export { app, auth, db };

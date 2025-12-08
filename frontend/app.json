@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "RouteMate",
+    "slug": "routemate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.routemate",
+      "config": {
+        "googleMapsApiKey": "AIzaSyDfdostSE5FbdXxXJ-2MUEpnGO7YKspK4k"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "RouteMate needs your location to show nearby rides",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "RouteMate needs your location to track rides"
+      }
+    },
+    "android": {
+      "package": "com.yourcompany.routemate",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDfdostSE5FbdXxXJ-2MUEpnGO7YKspK4k"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow RouteMate to use your location"
+        }
+      ]
+    ]
+  }
+}

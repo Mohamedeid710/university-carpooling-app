@@ -83,8 +83,19 @@ export default function RideHistoryScreen({ navigation }) {
     const departureDate = isBooking ? ride.departureTime : ride.departureTime;
     const cost = isBooking ? ride.estimatedCost : ride.estimatedCost;
 
+    const handlePress = () => {
+    if (!isBooking && (ride.status === 'active' || ride.status === 'scheduled')) {
+      // Driver viewing their own ride
+      navigation.navigate('ActiveRide', { rideId: ride.id });
+    }
+  };
+
     return (
-      <TouchableOpacity style={styles.rideCard}>
+      <TouchableOpacity 
+      style={styles.rideCard}
+      onPress={handlePress}
+      disabled={isBooking || (ride.status !== 'active' && ride.status !== 'scheduled')}
+    >
         <View style={styles.rideCardContent}>
           <View style={styles.locationRow}>
             <Ionicons name="location" size={20} color="#5B9FAD" />

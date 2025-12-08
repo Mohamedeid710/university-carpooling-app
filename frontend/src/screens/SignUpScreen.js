@@ -18,17 +18,18 @@ import { auth, db } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function SignUpScreen({ navigation }) {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState(''); // 'male' or 'female'
+  const [gender, setGender] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
-    if (!name || !email || !password || !confirmPassword || !phone || !gender) {
-      Alert.alert('Error', 'Please fill in all fields including gender and phone number');
+    if (!firstName || !lastName || !email || !password || !confirmPassword || !phone || !gender) {
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
@@ -52,18 +53,24 @@ export default function SignUpScreen({ navigation }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // Update display name with first name only
       await updateProfile(user, {
-        displayName: name
+        displayName: firstName
       });
 
+      // Create user document with split name
       await setDoc(doc(db, 'users', user.uid), {
-        name: name,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         email: email,
-        phone: phone,
+        phone: `+973${phone}`,
         gender: gender,
+        profilePictureUrl: '',
         createdAt: new Date().toISOString(),
         averageRating: 0,
-        totalRatings: 0
+        totalRatings: 0,
+        hasRegisteredVehicle: false,
+        isDriver: false,
       });
 
       Alert.alert('Success', 'Account created successfully!');
@@ -79,7 +86,6 @@ export default function SignUpScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      {/* Back Button */}
       <TouchableOpacity 
         style={styles.backButton}
         onPress={() => navigation.goBack()}
@@ -93,19 +99,31 @@ export default function SignUpScreen({ navigation }) {
           <Text style={styles.subtitle}>Join RouteMate today</Text>
 
           <View style={styles.formContainer}>
-            {/* Name Input */}
+            {/* First Name */}
             <View style={styles.inputContainer}>
               <Ionicons name="person-outline" size={20} color="#5B9FAD" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Full Name *"
+                placeholder="First Name *"
                 placeholderTextColor="#7F8C8D"
-                value={name}
-                onChangeText={setName}
+                value={firstName}
+                onChangeText={setFirstName}
               />
             </View>
 
-            {/* Email Input */}
+            {/* Last Name */}
+            <View style={styles.inputContainer}>
+              <Ionicons name="person-outline" size={20} color="#5B9FAD" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Last Name *"
+                placeholderTextColor="#7F8C8D"
+                value={lastName}
+                onChangeText={setLastName}
+              />
+            </View>
+
+            {/* Email */}
             <View style={styles.inputContainer}>
               <Ionicons name="mail-outline" size={20} color="#5B9FAD" style={styles.inputIcon} />
               <TextInput
@@ -119,7 +137,7 @@ export default function SignUpScreen({ navigation }) {
               />
             </View>
 
-            {/* Phone Input with Bahrain Flag */}
+            {/* Phone */}
             <View style={styles.inputContainer}>
               <Text style={styles.flagEmoji}>🇧🇭</Text>
               <Text style={styles.phoneCode}>+973</Text>
@@ -134,7 +152,7 @@ export default function SignUpScreen({ navigation }) {
               />
             </View>
 
-            {/* Gender Selection */}
+            {/* Gender */}
             <View style={styles.genderContainer}>
               <Text style={styles.genderLabel}>Gender *</Text>
               <View style={styles.genderButtons}>
@@ -180,7 +198,7 @@ export default function SignUpScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Password Input */}
+            {/* Password */}
             <View style={styles.inputContainer}>
               <Ionicons name="lock-closed-outline" size={20} color="#5B9FAD" style={styles.inputIcon} />
               <TextInput
@@ -193,7 +211,7 @@ export default function SignUpScreen({ navigation }) {
               />
             </View>
 
-            {/* Confirm Password Input */}
+            {/* Confirm Password */}
             <View style={styles.inputContainer}>
               <Ionicons name="lock-closed-outline" size={20} color="#5B9FAD" style={styles.inputIcon} />
               <TextInput
