@@ -44,83 +44,101 @@ export default function RatingScreen({ navigation, route }) {
     }
   };
 
-  const handleSubmit = async () => {
-    if (rating === 0) {
-      Alert.alert('Rating Required', 'Please select a star rating');
-      return;
+  // Replace the handleSubmit function (around line 70-120) with:
+
+const handleSubmit = async () => {
+  if (rating === 0) {
+    Alert.alert('Rating Required', 'Please select a star rating');
+    return;
+  }
+
+  if (rating < 4 && selectedIssues.length === 0) {
+    Alert.alert('Feedback Required', 'Please select at least one issue or provide feedback');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    // Check if booking exists and has required data
+    if (!booking || !booking.id) {
+      throw new Error('Booking information is missing');
     }
 
-    if (rating < 4 && selectedIssues.length === 0) {
-      Alert.alert('Feedback Required', 'Please select at least one issue or provide feedback');
-      return;
+    // Get driver ID - check multiple possible locations
+    const driverId = booking.driverId || booking.data?.driverId || booking.rideDetails?.driverId;
+    if (!driverId) {
+      throw new Error('Driver information is missing');
     }
 
-    setLoading(true);
+    const existingRating = await getDocs(
+      query(
+        collection(db, 'ratings'),
+        where('bookingId', '==', booking.id),
+        where('raterId', '==', user.uid)
+      )
+    );
 
-    try {
-      const existingRating = await getDocs(
-        query(
-          collection(db, 'ratings'),
-          where('bookingId', '==', booking.id),
-          where('raterId', '==', user.uid)
-        )
-      );
-
-      if (!existingRating.empty) {
-        Alert.alert('Already Rated', 'You have already rated this ride');
-        setLoading(false);
-        return;
-      }
-
-      const feedbackComment = selectedIssues.length > 0 
-        ? `Issues: ${selectedIssues.join(', ')}${otherComment ? `. Other: ${otherComment}` : ''}`
-        : otherComment || 'Good ride';
-
-      await addDoc(collection(db, 'ratings'), {
-        bookingId: booking.id,
-        raterId: user.uid,
-        ratedUserId: booking.driverId,
-        rating: rating,
-        comment: feedbackComment,
-        createdAt: new Date().toISOString(),
-      });
-
-      const driverRatings = await getDocs(
-        query(collection(db, 'ratings'), where('ratedUserId', '==', booking.driverId))
-      );
-
-      let totalRating = 0;
-      let count = 0;
-
-      driverRatings.forEach((doc) => {
-        totalRating += doc.data().rating;
-        count++;
-      });
-
-      const averageRating = totalRating / count;
-
-      await updateDoc(doc(db, 'users', booking.driverId), {
-        averageRating: parseFloat(averageRating.toFixed(2)),
-        totalRatings: count,
-      });
-
-      await updateDoc(doc(db, 'bookings', booking.id), {
-        rated: true,
-      });
-
-      Alert.alert('Thank You!', 'Your rating has been submitted successfully', [
-        {
-          text: 'OK',
-          onPress: () => navigation.navigate('Home'),
-        },
-      ]);
-    } catch (error) {
-      console.error('Rating error:', error);
-      Alert.alert('Error', 'Failed to submit rating. Please try again.');
-    } finally {
+    if (!existingRating.empty) {
+      Alert.alert('Already Rated', 'You have already rated this ride');
       setLoading(false);
+      return;
     }
-  };
+
+    const feedbackComment = selectedIssues.length > 0 
+      ? `Issues: ${selectedIssues.join(', ')}${otherComment ? `. Other: ${otherComment}` : ''}`
+      : otherComment || 'Good ride';
+
+    // Save the rating
+    await addDoc(collection(db, 'ratings'), {
+      bookingId: booking.id,
+      raterId: user.uid,
+      ratedUserId: driverId,
+      rating: rating,
+      comment: feedbackComment,
+      rideId: booking.rideId, // Add rideId for reference
+      createdAt: new Date().toISOString(),
+    });
+
+    // Calculate new average rating for driver
+    const driverRatings = await getDocs(
+      query(collection(db, 'ratings'), where('ratedUserId', '==', driverId))
+    );
+
+    let totalRating = 0;
+    let count = 0;
+
+    driverRatings.forEach((doc) => {
+      totalRating += doc.data().rating;
+      count++;
+    });
+
+    const averageRating = count > 0 ? totalRating / count : 0;
+
+    // Update driver's rating
+    await updateDoc(doc(db, 'users', driverId), {
+      averageRating: parseFloat(averageRating.toFixed(2)),
+      totalRatings: count,
+    });
+
+    // Mark booking as rated
+    await updateDoc(doc(db, 'bookings', booking.id), {
+      rated: true,
+    });
+
+    Alert.alert('Thank You!', 'Your rating has been submitted successfully', [
+      {
+        text: 'OK',
+        onPress: () => navigation.navigate('Home'),
+      },
+    ]);
+  } catch (error) {
+    console.error('Rating error:', error);
+    Alert.alert('Error', error.message || 'Failed to submit rating. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <View style={styles.container}>

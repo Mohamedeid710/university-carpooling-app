@@ -14,6 +14,8 @@ import {
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Animated, Easing } from 'react-native';
 
 export default function SignInScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -37,10 +39,14 @@ export default function SignInScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
+    <LinearGradient
+  colors={['#0F2027', '#203A43', '#2C5364']}
+  style={styles.gradient}
+>
+  <KeyboardAvoidingView 
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    style={styles.container}
+  >
       {/* Back Button */}
       <TouchableOpacity 
         style={styles.backButton}
@@ -99,6 +105,7 @@ export default function SignInScreen({ navigation }) {
         </View>
       </View>
     </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
@@ -183,4 +190,11 @@ const styles = StyleSheet.create({
     color: '#5B9FAD',
     fontWeight: 'bold',
   },
+  gradient: {
+  flex: 1,
+},
+container: {
+  flex: 1,
+  backgroundColor: 'transparent',
+},
 });

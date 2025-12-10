@@ -168,13 +168,17 @@ export default function ProfileScreen({ navigation }) {
           </Text>
           <Text style={styles.userEmail}>{userData?.email}</Text>
 
-          {userData?.averageRating > 0 && (
-            <View style={styles.ratingContainer}>
+         {userData?.averageRating > 0 && (
+            <TouchableOpacity 
+              style={styles.ratingContainer}
+              onPress={() => navigation.navigate('Reviews')}
+            >
               <Ionicons name="star" size={20} color="#FFD700" />
               <Text style={styles.ratingText}>
                 {userData.averageRating.toFixed(1)} ({userData.totalRatings} ratings)
               </Text>
-            </View>
+              <Ionicons name="chevron-forward" size={16} color="#7F8C8D" />
+            </TouchableOpacity>
           )}
         </View>
 
@@ -235,6 +239,17 @@ export default function ProfileScreen({ navigation }) {
             <View style={styles.actionLeft}>
               <Ionicons name="car-outline" size={24} color="#5B9FAD" />
               <Text style={styles.actionText}>My Vehicles</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#7F8C8D" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('Reviews')}
+          >
+            <View style={styles.actionLeft}>
+              <Ionicons name="star-outline" size={24} color="#5B9FAD" />
+              <Text style={styles.actionText}>My Reviews</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color="#7F8C8D" />
           </TouchableOpacity>

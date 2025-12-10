@@ -11,7 +11,8 @@ export default function HomeScreen({ navigation }) {
   const slideAnim = useRef(new Animated.Value(30)).current;
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeRide, setActiveRide] = useState(null);
-  const [pendingRequest, setPendingRequest] = useState(null);
+  const [myBookings, setMyBookings] = useState([]); // NEW: Track rider's bookings
+  const [myRequests, setMyRequests] = useState([]); // NEW: Track pending requests
   const [stats, setStats] = useState({
     ridesOffered: 0,
     ridesTaken: 0,
@@ -35,7 +36,8 @@ export default function HomeScreen({ navigation }) {
     if (user) {
       subscribeToNotifications();
       subscribeToActiveRides();
-      subscribeToPendingRequests();
+      subscribeToMyBookings(); // NEW: Subscribe to rider's bookings
+      subscribeToMyRequests(); // NEW: Subscribe to pending requests
       loadStats();
     }
   }, [user]);
@@ -59,39 +61,91 @@ export default function HomeScreen({ navigation }) {
       where('status', 'in', ['active', 'scheduled'])
     );
 
-    return onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, async (snapshot) => {
       if (!snapshot.empty) {
         const rideData = snapshot.docs[0].data();
-        setActiveRide({ id: snapshot.docs[0].id, ...rideData });
+        const rideId = snapshot.docs[0].id;
+        
+        // Count accepted/in-progress bookings for this ride
+        const bookingsQuery = query(
+          collection(db, 'bookings'),
+          where('rideId', '==', rideId),
+          where('status', 'in', ['confirmed', 'in_progress'])
+        );
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+        
+        setActiveRide({ 
+          id: rideId, 
+          ...rideData,
+          currentRiders: bookingsSnapshot.size 
+        });
       } else {
         setActiveRide(null);
       }
     });
   };
 
-  const subscribeToPendingRequests = () => {
+  // NEW: Subscribe to bookings as rider (shows accepted rides)
+  const subscribeToMyBookings = () => {
     const q = query(
-      collection(db, 'rideRequests'),
+      collection(db, 'bookings'),
       where('riderId', '==', user.uid),
-      where('status', '==', 'pending')
+      where('status', 'in', ['confirmed', 'scheduled', 'in_progress'])
     );
 
     return onSnapshot(q, async (snapshot) => {
-      if (!snapshot.empty) {
-        const requestData = snapshot.docs[0].data();
-        const rideDoc = await getDoc(doc(db, 'rides', requestData.rideId));
-        if (rideDoc.exists()) {
-          setPendingRequest({
-            id: snapshot.docs[0].id,
-            ...requestData,
-            ride: { id: rideDoc.id, ...rideDoc.data() }
-          });
+      const bookingsData = [];
+      
+      for (const docSnapshot of snapshot.docs) {
+        const booking = { id: docSnapshot.id, ...docSnapshot.data() };
+        
+        // Fetch the ride details
+        try {
+          const rideDoc = await getDoc(doc(db, 'rides', booking.rideId));
+          if (rideDoc.exists()) {
+            booking.rideDetails = { id: rideDoc.id, ...rideDoc.data() };
+          }
+        } catch (error) {
+          console.error('Error fetching ride details:', error);
         }
-      } else {
-        setPendingRequest(null);
+        
+        bookingsData.push(booking);
       }
+      
+      setMyBookings(bookingsData);
     });
   };
+
+  // NEW: Subscribe to ride requests as rider (shows pending requests)
+const subscribeToMyRequests = () => {
+  const q = query(
+    collection(db, 'rideRequests'),
+    where('riderId', '==', user.uid),
+    where('status', '==', 'pending')
+  );
+
+  return onSnapshot(q, async (snapshot) => {
+    const requestsData = [];
+    
+    for (const docSnapshot of snapshot.docs) {
+      const request = { id: docSnapshot.id, ...docSnapshot.data() };
+      
+      // Fetch the ride details
+      try {
+        const rideDoc = await getDoc(doc(db, 'rides', request.rideId));
+        if (rideDoc.exists()) {
+          request.rideDetails = { id: rideDoc.id, ...rideDoc.data() };
+        }
+      } catch (error) {
+        console.error('Error fetching ride details:', error);
+      }
+      
+      requestsData.push(request);
+    }
+    
+    setMyRequests(requestsData);
+  });
+};
 
   const loadStats = async () => {
     try {
@@ -135,7 +189,7 @@ export default function HomeScreen({ navigation }) {
     const bookingsQuery = query(
       collection(db, 'bookings'),
       where('riderId', '==', user.uid),
-      where('status', 'in', ['pending', 'confirmed'])
+      where('status', 'in', ['pending', 'confirmed', 'in_progress'])
     );
     const bookingsSnapshot = await getDocs(bookingsQuery);
 
@@ -162,6 +216,44 @@ export default function HomeScreen({ navigation }) {
     const minutesStr = minutes < 10 ? '0' + minutes : minutes;
     return `${hours}:${minutesStr} ${ampm}`;
   };
+  
+  // ADD this helper function at the top with other functions:
+const getStatusInfo = (status) => {
+  switch (status) {
+    case 'scheduled':
+      return { 
+        text: 'SCHEDULED', 
+        color: '#3498DB', 
+        bg: 'rgba(52, 152, 219, 0.2)',
+        borderColor: '#3498DB',
+        shadowColor: '#3498DB'
+      };
+    case 'in_progress':
+      return { 
+        text: 'IN PROGRESS', 
+        color: '#2ECC71', 
+        bg: 'rgba(46, 204, 113, 0.2)',
+        borderColor: '#2ECC71',
+        shadowColor: '#2ECC71'
+      };
+    case 'confirmed':
+      return { 
+        text: 'CONFIRMED', 
+        color: '#3498DB', 
+        bg: 'rgba(52, 152, 219, 0.2)',
+        borderColor: '#3498DB',
+        shadowColor: '#3498DB'
+      };
+    default:
+      return { 
+        text: status?.toUpperCase(), 
+        color: '#7F8C8D', 
+        bg: 'rgba(127, 140, 141, 0.2)',
+        borderColor: '#7F8C8D',
+        shadowColor: '#7F8C8D'
+      };
+  }
+};
 
   return (
     <View style={styles.container}>
@@ -227,109 +319,191 @@ export default function HomeScreen({ navigation }) {
           </View>
         </Animated.View>
 
-        {/* My Rides Section */}
-        <Text style={styles.sectionTitle}>My Rides</Text>
-        
-        {/* Active/Scheduled Ride as Driver */}
-        {activeRide && (
-          <TouchableOpacity
-            style={styles.rideCard}
-            onPress={() => navigation.navigate('ActiveRide', { rideId: activeRide.id })}
-            activeOpacity={0.8}
-          >
-            <View style={styles.rideHeader}>
-              <View style={[
-                styles.statusBadge,
-                activeRide.status === 'active' ? styles.statusBadgeActive : styles.statusBadgeScheduled
-              ]}>
-                {activeRide.status === 'active' && <View style={styles.pulseDot} />}
-                <Text style={[
-                  styles.statusText,
-                  activeRide.status === 'active' ? styles.statusTextActive : styles.statusTextScheduled
-                ]}>
-                  {activeRide.status === 'active' ? 'ACTIVE' : 'SCHEDULED'}
-                </Text>
-              </View>
-              <Text style={styles.rideRole}>Driver</Text>
-            </View>
+       {/* My Rides Section */}
+{(activeRide || myBookings.length > 0 || myRequests.length > 0) && (
+  <View style={styles.myRidesSection}>
+    <Text style={styles.sectionTitle}>My Rides</Text>
+    
+    {/* Driver's Active/Scheduled Ride */}
+    {activeRide && (
+      <TouchableOpacity
+        style={[
+          styles.activeRideCard,
+          activeRide.status === 'scheduled' ? styles.scheduledRideCard : styles.activeRideCardLive
+        ]}
+        onPress={() => navigation.navigate('ActiveRide', { rideId: activeRide.id })}
+      >
 
-            <View style={styles.rideRoute}>
-              <View style={styles.routePoint}>
-                <Ionicons name="ellipse" size={12} color="#5B9FAD" />
-                <Text style={styles.routeText} numberOfLines={1}>{activeRide.pickupLocation}</Text>
-              </View>
-              <View style={styles.routeLine} />
-              <View style={styles.routePoint}>
-                <Ionicons name="location" size={12} color="#5B9FAD" />
-                <Text style={styles.routeText} numberOfLines={1}>{activeRide.destination}</Text>
-              </View>
-            </View>
-
-            <View style={styles.rideFooter}>
-              <View style={styles.rideDetail}>
-                <Ionicons name="time-outline" size={16} color="#7F8C8D" />
-                <Text style={styles.rideDetailText}>
-                  {activeRide.status === 'active' ? 'In Progress' : formatTime(activeRide.departureTime)}
-                </Text>
-              </View>
-              <View style={styles.rideDetail}>
-                <Ionicons name="people-outline" size={16} color="#7F8C8D" />
-                <Text style={styles.rideDetailText}>
-                  {activeRide.totalSeats - activeRide.availableSeats}/{activeRide.totalSeats} riders
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Pending Request as Rider */}
-        {pendingRequest && (
-          <View style={styles.rideCard}>
-            <View style={styles.rideHeader}>
-              <View style={styles.statusBadgePending}>
-                <Ionicons name="time-outline" size={14} color="#F39C12" />
-                <Text style={styles.statusTextPending}>PENDING APPROVAL</Text>
-              </View>
-              <Text style={styles.rideRole}>Rider</Text>
-            </View>
-
-            <View style={styles.rideRoute}>
-              <View style={styles.routePoint}>
-                <Ionicons name="ellipse" size={12} color="#5B9FAD" />
-                <Text style={styles.routeText} numberOfLines={1}>{pendingRequest.ride?.pickupLocation}</Text>
-              </View>
-              <View style={styles.routeLine} />
-              <View style={styles.routePoint}>
-                <Ionicons name="location" size={12} color="#5B9FAD" />
-                <Text style={styles.routeText} numberOfLines={1}>{pendingRequest.ride?.destination}</Text>
-              </View>
-            </View>
-
-            <View style={styles.rideFooter}>
-              <View style={styles.rideDetail}>
-                <Ionicons name="person-outline" size={16} color="#7F8C8D" />
-                <Text style={styles.rideDetailText}>Driver: {pendingRequest.ride?.driverName}</Text>
-              </View>
-              <View style={styles.rideDetail}>
-                <Ionicons name="time-outline" size={16} color="#7F8C8D" />
-                <Text style={styles.rideDetailText}>
-                  {formatTime(pendingRequest.ride?.departureTime)}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.pendingNote}>
-              Waiting for driver to accept your request...
+       <View style={styles.activeRideHeader}>
+          <View style={[
+            styles.statusBadgeCompact,
+            activeRide.status === 'active' 
+              ? { backgroundColor: 'rgba(46, 204, 113, 0.15)', borderColor: '#2ECC71' }
+              : { backgroundColor: 'rgba(52, 152, 219, 0.15)', borderColor: '#3498DB' }
+          ]}>
+            <Text style={[
+              styles.statusBadgeText,
+              activeRide.status === 'active' 
+                ? { color: '#2ECC71' }
+                : { color: '#3498DB' }
+            ]}>
+              {activeRide.status === 'active' ? 'ACTIVE' : 'SCHEDULED'}
             </Text>
           </View>
+        </View>
+        
+        {/* Route Info */}
+        <View style={styles.activeRideRoute}>
+          <View style={styles.routeItemRow}>
+            <Ionicons name="ellipse" size={12} color="#5B9FAD" />
+            <Text style={styles.activeRideLocation} numberOfLines={1}>
+              {activeRide.pickupLocation}
+            </Text>
+          </View>
+          <View style={styles.routeItemRow}>
+            <Ionicons name="location" size={12} color="#E74C3C" />
+            <Text style={styles.activeRideLocation} numberOfLines={1}>
+              {activeRide.destination}
+            </Text>
+          </View>
+        </View>
+        
+       
+
+{/* New Details Section */}
+        <View style={styles.rideDetailsSection}>
+          <View style={styles.rideDetailItem}>
+            <Ionicons name="people" size={16} color="#5B9FAD" />
+            <Text style={styles.rideDetailText}>
+              {activeRide.acceptedRiders?.length || activeRide.currentRiders || 0}/{activeRide.totalSeats} riders
+            </Text>
+          </View>
+          <View style={styles.rideDetailItem}>
+            <Ionicons name="car" size={16} color="#5B9FAD" />
+            <Text style={styles.rideDetailText}>{activeRide.vehicleName}</Text>
+          </View>
+          {activeRide.status === 'scheduled' && activeRide.departureTime && (
+            <View style={styles.rideDetailItem}>
+              <Ionicons name="time" size={16} color="#5B9FAD" />
+              <Text style={styles.rideDetailText}>
+                {new Date(activeRide.departureTime).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </Text>
+            </View>
+          )}
+        </View>
+        
+        {activeRide.status === 'active' && (
+          <View style={styles.liveIndicator}>
+            <View style={styles.liveDot} />
+            
+          </View>
         )}
+      </TouchableOpacity>
+    )}
+
+    {/* Rider's Pending Requests */}
+    {myRequests.map((request) => (
+      <TouchableOpacity
+        key={request.id}
+        style={styles.requestCard}
+        onPress={() => navigation.navigate('RideDetails', { 
+          ride: request.rideDetails 
+        })}
+      >
+        <View style={styles.requestCardHeader}>
+          <View style={styles.pendingBadge}>
+            <Text style={styles.pendingBadgeText}>PENDING</Text>
+          </View>
+          <Text style={styles.requestCardTime}>
+            {new Date(request.createdAt).toLocaleString()}
+          </Text>
+        </View>
+        <View style={styles.requestCardContent}>
+          <View style={styles.requestLocationRow}>
+            <Ionicons name="ellipse" size={12} color="#5B9FAD" />
+            <Text style={styles.requestLocationText} numberOfLines={1}>
+              {request.pickupLocation}
+            </Text>
+          </View>
+          <View style={styles.requestLocationRow}>
+            <Ionicons name="location" size={12} color="#E74C3C" />
+            <Text style={styles.requestLocationText} numberOfLines={1}>
+              {request.rideDetails?.destination}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    ))}
+
+    {/* Rider's Accepted Bookings */}
+    {myBookings.map((booking) => {
+      const statusInfo = getStatusInfo(booking.status);
+      return (
+        <TouchableOpacity
+  key={booking.id}
+  style={[
+    styles.bookingCard,
+    {
+      borderColor: statusInfo.borderColor,
+      shadowColor: statusInfo.shadowColor,
+    }
+  ]}
+          onPress={() => navigation.navigate('RiderBookingDetails', { 
+            bookingId: booking.id 
+          })}
+        >
+          <View style={styles.bookingCardHeader}>
+            <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
+              <Text style={[styles.statusBadgeText, { color: statusInfo.color }]}>
+                {statusInfo.text}
+              </Text>
+            </View>
+            {booking.status === 'in_progress' && (
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                
+              </View>
+            )}
+          </View>
+          <View style={styles.bookingCardContent}>
+            <View style={styles.bookingLocationRow}>
+              <Ionicons name="ellipse" size={12} color="#5B9FAD" />
+              <Text style={styles.bookingLocationText} numberOfLines={1}>
+                {booking.pickupLocation}
+              </Text>
+            </View>
+            <View style={styles.bookingLocationRow}>
+              <Ionicons name="location" size={12} color="#E74C3C" />
+              <Text style={styles.bookingLocationText} numberOfLines={1}>
+                {booking.destination}
+              </Text>
+            </View>
+            <View style={styles.bookingDriverRow}>
+              <Ionicons name="person" size={14} color="#7F8C8D" />
+              <Text style={styles.bookingDriverText}>
+                Driver: {booking.driverName}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+)}
 
         {/* Empty State */}
-        {!activeRide && !pendingRequest && (
+        {!activeRide && myBookings.length === 0 && (
           <View style={styles.ridesContainer}>
-            <Ionicons name="calendar-outline" size={48} color="#5B9FAD" />
-            <Text style={styles.emptyText}>No upcoming rides</Text>
-            <Text style={styles.emptySubtext}>Start by offering or finding a ride</Text>
+            <Ionicons name="car-outline" size={60} color="#3A3A4E" />
+            <Text style={styles.emptyText}>No active rides</Text>
+            <Text style={styles.emptySubtext}>
+              Offer or find a ride to get started
+            </Text>
           </View>
         )}
 
@@ -488,21 +662,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 6,
   },
-  statusBadgeActive: {
-    backgroundColor: 'rgba(46, 204, 113, 0.2)',
-  },
-  statusBadgeScheduled: {
-    backgroundColor: 'rgba(91, 159, 173, 0.2)',
-  },
-  statusBadgePending: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(243, 156, 18, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
-  },
   pulseDot: {
     width: 8,
     height: 8,
@@ -512,18 +671,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-    fontFamily: 'System',
-  },
-  statusTextActive: {
-    color: '#2ECC71',
-  },
-  statusTextScheduled: {
-    color: '#5B9FAD',
-  },
-  statusTextPending: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#F39C12',
     fontFamily: 'System',
   },
   rideRole: {
@@ -568,13 +715,6 @@ const styles = StyleSheet.create({
   rideDetailText: {
     fontSize: 12,
     color: '#7F8C8D',
-    fontFamily: 'System',
-  },
-  pendingNote: {
-    fontSize: 12,
-    color: '#F39C12',
-    fontStyle: 'italic',
-    marginTop: 12,
     fontFamily: 'System',
   },
   ridesContainer: {
@@ -626,4 +766,186 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: 'System',
   },
+  requestCard: {
+  backgroundColor: 'rgba(243, 156, 18, 0.2)',
+  borderRadius: 16,
+  padding: 16,
+  marginBottom: 12,
+  borderWidth: 3,
+  borderColor: '#F39C12',
+  shadowColor: '#F39C12',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.7,
+  shadowRadius: 20,
+  elevation: 15,
+},
+requestCardHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 12,
+},
+pendingBadge: {
+  backgroundColor: '#F39C12',
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 12,
+},
+pendingBadgeText: {
+  fontSize: 12,
+  fontWeight: '600',
+  color: '#FFFFFF',
+  fontFamily: 'System',
+},
+requestCardTime: {
+  fontSize: 11,
+  color: '#F39C12',
+  fontFamily: 'System',
+},
+requestCardContent: {
+  gap: 8,
+},
+requestLocationRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+},
+requestLocationText: {
+  fontSize: 14,
+  color: '#FFFFFF',
+  flex: 1,
+  fontFamily: 'System',
+},
+bookingCard: {
+  backgroundColor: '#2C2C3E',
+  borderRadius: 16,
+  padding: 16,
+  marginBottom: 12,
+  borderWidth: 3,
+  borderColor: '#3A3A4E',
+  shadowColor: '#3498DB',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.6,
+  shadowRadius: 16,
+  elevation: 12,
+},
+bookingCardHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 12,
+},
+statusBadge: {
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 12,
+},
+statusBadgeText: {
+  fontSize: 12,
+  fontWeight: '600',
+  fontFamily: 'System',
+},
+bookingCardContent: {
+  gap: 8,
+},
+bookingLocationRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+},
+bookingLocationText: {
+  fontSize: 14,
+  color: '#FFFFFF',
+  flex: 1,
+  fontFamily: 'System',
+},
+bookingDriverRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  marginTop: 8,
+  paddingTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: '#3A3A4E',
+},
+bookingDriverText: {
+  fontSize: 13,
+  color: '#7F8C8D',
+  fontFamily: 'System',
+},
+activeRideCard: {
+  backgroundColor: '#2C2C3E',
+  borderRadius: 16,
+  padding: 16,
+  marginBottom: 12,
+  borderWidth: 3,
+  borderColor: '#5B9FAD',
+  shadowColor: '#5B9FAD',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.6,
+  shadowRadius: 16,
+  elevation: 12,
+},
+activeRideRoute: {
+  marginTop: 12,
+  marginBottom: 4,
+},
+activeRideLocation: {
+  fontSize: 14,
+  color: '#FFFFFF',
+  fontWeight: '500',
+  fontFamily: 'System',
+  flex: 1,
+},
+rideDetailsSection: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 12,
+  marginTop: 12,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: '#3A3A4E',
+},
+rideDetailItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+},
+rideDetailText: {
+  fontSize: 13,
+  color: '#FFFFFF',
+  fontFamily: 'System',
+},
+scheduledRideCard: {
+  borderColor: '#3498DB',
+  shadowColor: '#3498DB',
+  shadowOpacity: 0.6,
+  shadowRadius: 16,
+  elevation: 12,
+},
+activeRideCardLive: {
+  borderColor: '#2ECC71',
+  shadowColor: '#2ECC71',
+  shadowOpacity: 0.6,
+  shadowRadius: 16,
+  elevation: 12,
+},
+routeItemRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  marginBottom: 8,
+},
+statusBadgeCompact: {
+  paddingHorizontal: 16,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  alignSelf: 'flex-start',
+},
+activeRideHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginBottom: 12,
+},
 });

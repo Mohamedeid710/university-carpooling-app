@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import { Image } from 'react-native';
 
 export default function RegisteredVehiclesScreen({ navigation }) {
   const [vehicles, setVehicles] = useState([]);
@@ -156,9 +157,13 @@ export default function RegisteredVehiclesScreen({ navigation }) {
                 )}
 
                 <View style={styles.vehicleHeader}>
-                  <View style={styles.vehicleIconContainer}>
+                 <View style={styles.vehicleIconContainer}>
+                  {vehicle.imageUrl ? (
+                    <Image source={{ uri: vehicle.imageUrl }} style={styles.vehicleImage} />
+                  ) : (
                     <Ionicons name={getVehicleIcon(vehicle.size)} size={40} color="#5B9FAD" />
-                  </View>
+                  )}
+                </View>
                   <View style={styles.vehicleInfo}>
                     <Text style={styles.vehicleName}>{vehicle.vehicleName}</Text>
                     <Text style={styles.vehicleModel}>{vehicle.model}</Text>
@@ -320,13 +325,14 @@ const styles = StyleSheet.create({
   },
   vehicleIconContainer: {
     width: 70,
-    height: 70,
-    backgroundColor: 'rgba(91, 159, 173, 0.1)',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#5B9FAD',
+  height: 70,
+  backgroundColor: 'rgba(91, 159, 173, 0.1)',
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderWidth: 1,
+  borderColor: '#5B9FAD',
+  overflow: 'hidden',
   },
   vehicleInfo: {
     flex: 1,
@@ -381,4 +387,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontFamily: 'System',
   },
+  vehicleImage: {
+  width: '100%',
+  height: '100%',
+  resizeMode: 'cover',
+},
 });

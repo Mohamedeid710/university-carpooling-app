@@ -1,4 +1,4 @@
-// src/screens/PostRideScreen.js
+// src/screens/PostRideScreen.js - COMPLETE UPDATED VERSION
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,10 +11,12 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { collection, addDoc, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import { fetchRoute, calculateRecommendedPrice } from '../utils/routeHelpers';
 
 export default function PostRideScreen({ navigation }) {
   const [pickupLocation, setPickupLocation] = useState('');
@@ -36,6 +38,12 @@ export default function PostRideScreen({ navigation }) {
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [userGender, setUserGender] = useState('');
+  
+  // NEW: Route preview states
+  const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [distance, setDistance] = useState(null);
+  const [duration, setDuration] = useState(null);
+  const [calculatingRoute, setCalculatingRoute] = useState(false);
 
   const user = auth.currentUser;
 
@@ -43,6 +51,13 @@ export default function PostRideScreen({ navigation }) {
     loadUserData();
     loadVehicles();
   }, []);
+
+  // NEW: Calculate route when both locations are selected
+  useEffect(() => {
+    if (pickupCoordinates && destinationCoordinates) {
+      calculateRouteAndPrice();
+    }
+  }, [pickupCoordinates, destinationCoordinates]);
 
   const loadUserData = async () => {
     try {
@@ -53,6 +68,27 @@ export default function PostRideScreen({ navigation }) {
       console.error('Error loading user data:', error);
     }
   };
+
+  useEffect(() => {
+  checkExistingRide();
+}, []);
+
+const checkExistingRide = async () => {
+  const ridesQuery = query(
+    collection(db, 'rides'),
+    where('driverId', '==', user.uid),
+    where('status', 'in', ['active', 'scheduled'])
+  );
+  const snapshot = await getDocs(ridesQuery);
+  
+  if (!snapshot.empty) {
+    Alert.alert(
+      'Active Ride Exists',
+      'You can only post 1 ride at a time. Please complete or cancel your current ride before posting another.',
+      [{ text: 'OK', onPress: () => navigation.goBack() }]
+    );
+  }
+};
 
   const loadVehicles = async () => {
     try {
@@ -95,6 +131,42 @@ export default function PostRideScreen({ navigation }) {
     }
   };
 
+  // NEW: Calculate route and price
+  const calculateRouteAndPrice = async () => {
+    if (!pickupCoordinates || !destinationCoordinates) return;
+    
+    setCalculatingRoute(true);
+    try {
+      const routeData = await fetchRoute(pickupCoordinates, destinationCoordinates);
+      
+      if (routeData.success) {
+        setRouteCoordinates(routeData.coordinates);
+        setDistance(routeData.distance);
+        setDuration(routeData.duration);
+        
+        // Calculate recommended price if not free
+        if (!isFree && routeData.distanceValue) {
+          const recommendedPrice = calculateRecommendedPrice(routeData.distanceValue);
+          setPrice(recommendedPrice.toString());
+        }
+      } else {
+        setRouteCoordinates([pickupCoordinates, destinationCoordinates]);
+      }
+    } catch (error) {
+      console.error('Error calculating route:', error);
+      setRouteCoordinates([pickupCoordinates, destinationCoordinates]);
+    } finally {
+      setCalculatingRoute(false);
+    }
+  };
+
+  const calculateRecommendedPrice = () => {
+  if (!distance || distance === 0) return 0;
+  // 0.3 BHD per km as base rate
+  const basePrice = distance * 0.3;
+  return Math.max(1, Math.round(basePrice * 2) / 2); // Round to nearest 0.5
+};
+
   const onDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
     if (selectedDate) {
@@ -122,10 +194,6 @@ export default function PostRideScreen({ navigation }) {
     hours = hours ? hours : 12;
     const minutesStr = minutes < 10 ? '0' + minutes : minutes;
     return `${hours}:${minutesStr} ${ampm}`;
-  };
-
-  const calculateRecommendedPrice = () => {
-    return 3.0;
   };
 
   const handlePostRide = async () => {
@@ -182,13 +250,7 @@ export default function PostRideScreen({ navigation }) {
         Alert.alert(
           'Active Ride Exists',
           'You already have an active ride. Please cancel or complete it before posting a new one.',
-          [
-            {
-              text: 'View My Rides',
-              onPress: () => navigation.navigate('Home', { screen: 'HomeDrawer' }),
-            },
-            { text: 'OK' },
-          ]
+          [{ text: 'OK' }]
         );
         return;
       }
@@ -199,14 +261,8 @@ export default function PostRideScreen({ navigation }) {
     setLoading(true);
 
     try {
-      const departureDateTime = isScheduled
-        ? new Date(
-            departureDate.getFullYear(),
-            departureDate.getMonth(),
-            departureDate.getDate(),
-            departureTime.getHours(),
-            departureTime.getMinutes()
-          )
+      const finalDepartureTime = departureTime 
+        ? new Date(departureTime) 
         : new Date();
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -216,23 +272,29 @@ export default function PostRideScreen({ navigation }) {
         driverId: user.uid,
         driverName: `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim(),
         driverPhone: userData?.phone || '',
+        driverProfilePicture: userData?.profilePictureUrl || null,
         vehicleId: selectedVehicle.id,
         vehicleName: selectedVehicle.vehicleName,
         vehicleModel: selectedVehicle.model,
+        vehicleColor: selectedVehicle.color,
         vehiclePlate: selectedVehicle.plateNumber,
         pickupLocation: pickupLocation.trim(),
         pickupCoordinates: pickupCoordinates,
         destination: destination.trim(),
         destinationCoordinates: destinationCoordinates,
-        routeCoordinates: [pickupCoordinates, destinationCoordinates],
+        // NEW: Add route data
+        routePolyline: JSON.stringify(routeCoordinates),
+        distance: distance,
+        duration: duration,
         isScheduled: isScheduled,
-        scheduledTime: isScheduled ? departureDateTime.toISOString() : null,
-        departureTime: departureDateTime.toISOString(),
+       scheduledTime: isScheduled ? finalDepartureTime.toISOString() : null,
+        departureTime: finalDepartureTime.toISOString(),
         status: isScheduled ? 'scheduled' : 'active',
         isFemaleOnly: isFemaleOnly,
         availableSeats: parseInt(availableSeats),
         totalSeats: parseInt(availableSeats),
         isFree: isFree,
+        estimatedCost: isFree ? 0 : parseFloat(price),
         price: isFree ? 0 : parseFloat(price),
         notes: notes.trim(),
         createdAt: new Date().toISOString(),
@@ -252,12 +314,6 @@ export default function PostRideScreen({ navigation }) {
           ? 'Your ride has been scheduled successfully. Riders can now request to join.'
           : 'Your ride is now active! Riders can see your location and request to join.',
         [
-          {
-            text: 'View My Rides',
-            onPress: () => navigation.navigate('Home', { 
-              screen: 'HomeDrawer'
-            }),
-          },
           {
             text: 'OK',
             onPress: () => navigation.navigate('Home'),
@@ -316,34 +372,38 @@ export default function PostRideScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        <View style={styles.toggleContainer}>
-          <TouchableOpacity
-            style={[styles.toggleButton, !isScheduled && styles.toggleButtonActive]}
-            onPress={() => setIsScheduled(false)}
-          >
-            <Ionicons
-              name="flash"
-              size={20}
-              color={!isScheduled ? '#FFFFFF' : '#5B9FAD'}
-            />
-            <Text style={[styles.toggleText, !isScheduled && styles.toggleTextActive]}>
-              Start Now
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleButton, isScheduled && styles.toggleButtonActive]}
-            onPress={() => setIsScheduled(true)}
-          >
-            <Ionicons
-              name="calendar"
-              size={20}
-              color={isScheduled ? '#FFFFFF' : '#5B9FAD'}
-            />
-            <Text style={[styles.toggleText, isScheduled && styles.toggleTextActive]}>
-              Schedule
-            </Text>
-          </TouchableOpacity>
-        </View>
+        
+<View style={styles.toggleContainerLarge}>
+  <TouchableOpacity
+    style={[
+      styles.toggleButtonLarge,
+      !isScheduled && styles.toggleButtonLargeActive
+    ]}
+    onPress={() => setIsScheduled(false)}
+  >
+    <View style={styles.toggleButtonContent}>
+      <Ionicons name="flash" size={28} color={!isScheduled ? '#FFFFFF' : '#5B9FAD'} />
+      <Text style={[styles.toggleTextLarge, !isScheduled && styles.toggleTextLargeActive]}>
+        Start Now
+      </Text>
+    </View>
+  </TouchableOpacity>
+  
+  <TouchableOpacity
+    style={[
+      styles.toggleButtonLarge,
+      isScheduled && styles.toggleButtonLargeActive
+    ]}
+    onPress={() => setIsScheduled(true)}
+  >
+    <View style={styles.toggleButtonContent}>
+      <Ionicons name="calendar" size={28} color={isScheduled ? '#FFFFFF' : '#5B9FAD'} />
+      <Text style={[styles.toggleTextLarge, isScheduled && styles.toggleTextLargeActive]}>
+        Schedule
+      </Text>
+    </View>
+  </TouchableOpacity>
+</View>
 
         <TouchableOpacity
           style={styles.mapInputSection}
@@ -385,54 +445,95 @@ export default function PostRideScreen({ navigation }) {
           <Ionicons name="chevron-forward" size={20} color="#7F8C8D" />
         </TouchableOpacity>
 
+        {/* NEW: Route Preview Section */}
+        {pickupCoordinates && destinationCoordinates && (
+          <View style={styles.routePreviewSection}>
+            <Text style={styles.sectionTitle}>Route Preview</Text>
+            
+            {calculatingRoute ? (
+              <View style={styles.calculatingContainer}>
+                <ActivityIndicator size="small" color="#5B9FAD" />
+                <Text style={styles.calculatingText}>Calculating route...</Text>
+              </View>
+            ) : (
+              <>
+                {routeCoordinates.length > 0 && (
+                  <MapView
+                    provider={PROVIDER_GOOGLE}
+                    style={styles.miniMap}
+                    initialRegion={{
+                      latitude: (pickupCoordinates.latitude + destinationCoordinates.latitude) / 2,
+                      longitude: (pickupCoordinates.longitude + destinationCoordinates.longitude) / 2,
+                      latitudeDelta: Math.abs(pickupCoordinates.latitude - destinationCoordinates.latitude) * 2,
+                      longitudeDelta: Math.abs(pickupCoordinates.longitude - destinationCoordinates.longitude) * 2,
+                    }}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    pitchEnabled={false}
+                    rotateEnabled={false}
+                  >
+                    <Marker coordinate={pickupCoordinates} pinColor="#5B9FAD" />
+                    <Marker coordinate={destinationCoordinates} pinColor="#E74C3C" />
+                    <Polyline
+                      coordinates={routeCoordinates}
+                      strokeColor="#5B9FAD"
+                      strokeWidth={3}
+                    />
+                  </MapView>
+                )}
+
+                <View style={styles.routeInfoCard}>
+                  <View style={styles.routeInfoItem}>
+                    <Ionicons name="navigate" size={18} color="#5B9FAD" />
+                    <Text style={styles.routeInfoLabel}>Distance</Text>
+                    <Text style={styles.routeInfoValue}>{distance || 'N/A'}</Text>
+                  </View>
+                  <View style={styles.routeInfoDivider} />
+                  <View style={styles.routeInfoItem}>
+                    <Ionicons name="time" size={18} color="#5B9FAD" />
+                    <Text style={styles.routeInfoLabel}>Duration</Text>
+                    <Text style={styles.routeInfoValue}>{duration || 'N/A'}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
         {isScheduled && (
           <>
-            <TouchableOpacity
-              style={styles.optionRow}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <View style={styles.optionLeft}>
-                <Ionicons name="calendar" size={20} color="#5B9FAD" />
-                <Text style={styles.optionLabel}>Departure date</Text>
-              </View>
-              <View style={styles.optionRight}>
-                <Text style={styles.optionValue}>{formatDate(departureDate)}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#7F8C8D" />
-              </View>
-            </TouchableOpacity>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={departureDate}
-                mode="date"
-                display="default"
-                onChange={onDateChange}
-                minimumDate={new Date()}
-              />
-            )}
-
-            <TouchableOpacity
-              style={styles.optionRow}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <View style={styles.optionLeft}>
-                <Ionicons name="time" size={20} color="#5B9FAD" />
-                <Text style={styles.optionLabel}>Departure time</Text>
-              </View>
-              <View style={styles.optionRight}>
-                <Text style={styles.optionValue}>{formatTime(departureTime)}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#7F8C8D" />
-              </View>
-            </TouchableOpacity>
-
-            {showTimePicker && (
-              <DateTimePicker
-                value={departureTime}
-                mode="time"
-                display="default"
-                onChange={onTimeChange}
-              />
-            )}
+            
+<Text style={styles.helperText}>Select when your ride will start</Text>
+<TouchableOpacity
+  style={styles.datePickerButton}
+  onPress={() => setShowDatePicker(true)}
+>
+  <Ionicons name="calendar" size={24} color="#5B9FAD" />
+  <Text style={styles.datePickerText}>
+    {departureTime ? new Date(departureTime).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'Select date and time'}
+  </Text>
+  <Ionicons name="chevron-down" size={20} color="#7F8C8D" />
+</TouchableOpacity>
+{showDatePicker && (
+  <DateTimePicker
+    value={departureTime ? new Date(departureTime) : new Date()}
+    mode="datetime"
+    display="default"
+    minimumDate={new Date()}
+    onChange={(event, selectedDate) => {
+      setShowDatePicker(false);
+      if (selectedDate) {
+        setDepartureTime(selectedDate.toISOString());
+      }
+    }}
+  />
+)}
           </>
         )}
 
@@ -448,77 +549,101 @@ export default function PostRideScreen({ navigation }) {
           />
         </View>
 
-        <View style={styles.priceSection}>
-          <View style={styles.priceSectionHeader}>
-            <Text style={styles.sectionTitle}>Ride Price</Text>
+        <View style={styles.freeRideSection}>
+          <View style={styles.freeRideHeader}>
+            <Ionicons name="gift" size={20} color="#2ECC71" />
+            <View style={styles.freeRideTextContainer}>
+              <Text style={styles.freeRideTitle}>Free Ride</Text>
+              <Text style={styles.freeRideDescription}>
+                No cost for riders
+              </Text>
+            </View>
             <TouchableOpacity
-              style={styles.freeRideToggle}
+              style={[
+                styles.compactToggle,
+                styles.compactToggleGreen,
+                isFree && styles.compactToggleGreenActive
+              ]}
               onPress={() => setIsFree(!isFree)}
             >
-              <Ionicons
-                name={isFree ? 'checkmark-circle' : 'ellipse-outline'}
-                size={24}
-                color={isFree ? '#5B9FAD' : '#7F8C8D'}
-              />
-              <Text style={[styles.freeRideText, isFree && styles.freeRideTextActive]}>
-                Free Ride
-              </Text>
+              <View style={[
+                styles.compactToggleCircle,
+                isFree && styles.compactToggleCircleActive
+              ]} />
             </TouchableOpacity>
           </View>
-
-          {!isFree && (
-            <View style={styles.priceInputContainer}>
-              <View style={styles.inputSection}>
-                <Ionicons name="cash" size={24} color="#5B9FAD" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Price per person (BHD)"
-                  placeholderTextColor="#7F8C8D"
-                  value={price}
-                  onChangeText={setPrice}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <Text style={styles.recommendedPrice}>
-                💡 Recommended: {calculateRecommendedPrice().toFixed(2)} BHD
-              </Text>
-            </View>
-          )}
         </View>
 
-        {userGender === 'female' && (
-          <TouchableOpacity
-            style={styles.femaleOnlyContainer}
-            onPress={() => setIsFemaleOnly(!isFemaleOnly)}
-          >
-            <View style={styles.femaleOnlyLeft}>
-              <Ionicons name="female" size={24} color="#FF69B4" />
-              <View>
-                <Text style={styles.femaleOnlyTitle}>Female Only Ride</Text>
-                <Text style={styles.femaleOnlySubtitle}>Only female riders can join</Text>
-              </View>
-            </View>
-            <View
-              style={[
-                styles.switch,
-                isFemaleOnly && styles.switchActive,
-              ]}
-            >
-              <View
-                style={[
-                  styles.switchThumb,
-                  isFemaleOnly && styles.switchThumbActive,
-                ]}
-              />
-            </View>
-          </TouchableOpacity>
+        {distance > 0 && (
+  <View style={styles.priceRecommendationBox}>
+    <Ionicons name="lightbulb" size={24} color="#F39C12" />
+    <View style={styles.priceRecommendationText}>
+      <Text style={styles.priceRecommendationLabel}>Recommended Price</Text>
+      <Text style={styles.priceRecommendationAmount}>
+        Based on {distance.toFixed(1)} km distance
+      </Text>
+      <Text style={styles.priceRecommendationPrice}>
+        {calculateRecommendedPrice()} BHD
+      </Text>
+    </View>
+  </View>
+)}
+
+<View style={styles.suggestedPriceHeader}>
+  <Text style={styles.inputLabelYellow}>Price Per Seat (BHD)</Text>
+  {distance > 0 && !isFree && (
+    <Text style={styles.suggestedPriceText}>
+      Suggested: {calculateRecommendedPrice()} BHD
+    </Text>
+  )}
+</View>
+        {!isFree && (
+          <View style={[styles.inputSection, { opacity: isFree ? 0.5 : 1 }]}>
+          <Ionicons name="cash" size={24} color="#2ECC71" />
+            <TextInput
+              style={styles.input}
+              placeholder={distance ? `Suggested: ${price} BHD` : "Price per seat (BHD)"}
+              placeholderTextColor="#7F8C8D"
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="decimal-pad"
+            />
+          </View>
         )}
+
+        <View style={styles.femaleOnlySection}>
+          <View style={styles.femaleOnlyHeader}>
+            <Ionicons name="woman" size={20} color={userGender === 'female' ? '#FF69B4' : '#3A3A4E'} />
+            <View style={styles.femaleOnlyTextContainer}>
+              <Text style={styles.femaleOnlyTitle}>Female Only Ride</Text>
+              <Text style={styles.femaleOnlyDescription}>
+                {userGender === 'female' 
+                  ? 'Only female riders can join'
+                  : 'Only female drivers can enable this'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.compactToggle,
+                userGender !== 'female' && styles.compactToggleDisabled,
+                isFemaleOnly && styles.compactTogglePink,
+              ]}
+              onPress={() => setIsFemaleOnly(!isFemaleOnly)}
+              disabled={userGender !== 'female'}
+            >
+              <View style={[
+                styles.compactToggleCircle,
+                isFemaleOnly && styles.compactToggleCircleActive
+              ]} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <View style={styles.inputSection}>
           <Ionicons name="document-text" size={24} color="#5B9FAD" />
           <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Additional notes (optional)"
+            style={[styles.input, styles.notesInput]}
+            placeholder="Add ride notes (optional)"
             placeholderTextColor="#7F8C8D"
             value={notes}
             onChangeText={setNotes}
@@ -526,20 +651,11 @@ export default function PostRideScreen({ navigation }) {
             numberOfLines={3}
           />
         </View>
-
-        <View style={styles.infoBox}>
-          <Ionicons name="information-circle" size={20} color="#5B9FAD" />
-          <Text style={styles.infoText}>
-            {isScheduled
-              ? 'Your ride will be visible to riders at the scheduled time. You can start it early from your ride history.'
-              : 'Your ride is starting now! Your live location will be visible to riders who join.'}
-          </Text>
-        </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.postButton}
+          style={[styles.postButton, loading && styles.postButtonDisabled]}
           onPress={handlePostRide}
           disabled={loading}
         >
@@ -547,35 +663,30 @@ export default function PostRideScreen({ navigation }) {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Ionicons
-                name={isScheduled ? 'calendar' : 'flash'}
-                size={24}
-                color="#FFFFFF"
-              />
-              <Text style={styles.postButtonText}>
-                {isScheduled ? 'Schedule Ride' : 'Start Ride Now'}
-              </Text>
+              <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.postButtonText}>Post Ride</Text>
             </>
           )}
         </TouchableOpacity>
       </View>
 
+      {/* Vehicle Selection Modal */}
       <Modal
         visible={showVehicleModal}
-        transparent={true}
         animationType="slide"
+        transparent={true}
         onRequestClose={() => setShowVehicleModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Vehicle</Text>
               <TouchableOpacity onPress={() => setShowVehicleModal(false)}>
-                <Ionicons name="close" size={28} color="#FFFFFF" />
+                <Ionicons name="close" size={28} color="#5B9FAD" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalScroll}>
+            <ScrollView style={styles.modalBody}>
               {vehicles.map((vehicle) => (
                 <TouchableOpacity
                   key={vehicle.id}
@@ -589,47 +700,22 @@ export default function PostRideScreen({ navigation }) {
                     setShowVehicleModal(false);
                   }}
                 >
-                  <View style={styles.vehicleOptionIcon}>
-                    <Ionicons
-                      name={getVehicleIcon(vehicle.size)}
-                      size={32}
-                      color={selectedVehicle?.id === vehicle.id ? '#FFFFFF' : '#5B9FAD'}
-                    />
-                  </View>
+                  <Ionicons
+                    name={getVehicleIcon(vehicle.size)}
+                    size={32}
+                    color="#5B9FAD"
+                  />
                   <View style={styles.vehicleOptionInfo}>
-                    <Text
-                      style={[
-                        styles.vehicleOptionName,
-                        selectedVehicle?.id === vehicle.id && styles.vehicleOptionNameSelected,
-                      ]}
-                    >
-                      {vehicle.vehicleName}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.vehicleOptionModel,
-                        selectedVehicle?.id === vehicle.id && styles.vehicleOptionModelSelected,
-                      ]}
-                    >
+                    <Text style={styles.vehicleOptionName}>{vehicle.vehicleName}</Text>
+                    <Text style={styles.vehicleOptionDetails}>
                       {vehicle.model} • {vehicle.seats} seats
                     </Text>
                   </View>
                   {selectedVehicle?.id === vehicle.id && (
-                    <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                    <Ionicons name="checkmark-circle" size={24} color="#5B9FAD" />
                   )}
                 </TouchableOpacity>
               ))}
-
-              <TouchableOpacity
-                style={styles.addVehicleButton}
-                onPress={() => {
-                  setShowVehicleModal(false);
-                  navigation.navigate('VehicleRegistration');
-                }}
-              >
-                <Ionicons name="add-circle" size={24} color="#5B9FAD" />
-                <Text style={styles.addVehicleText}>Register New Vehicle</Text>
-              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -661,27 +747,27 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingTop: 20,
+    paddingHorizontal: 20,
   },
   vehicleSelector: {
     backgroundColor: '#2C2C3E',
-    marginHorizontal: 20,
-    marginBottom: 20,
     borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: '#3A3A4E',
   },
   vehicleSelectorContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
     gap: 12,
   },
   vehicleIconContainer: {
     width: 50,
     height: 50,
-    backgroundColor: 'rgba(91, 159, 173, 0.1)',
     borderRadius: 25,
+    backgroundColor: 'rgba(91, 159, 173, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -703,11 +789,10 @@ const styles = StyleSheet.create({
   toggleContainer: {
     flexDirection: 'row',
     backgroundColor: '#2C2C3E',
-    marginHorizontal: 20,
-    marginBottom: 20,
     borderRadius: 12,
     padding: 4,
-    gap: 4,
+    marginBottom: 20,
+    gap: 8,
   },
   toggleButton: {
     flex: 1,
@@ -722,7 +807,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#5B9FAD',
   },
   toggleText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#5B9FAD',
     fontFamily: 'System',
@@ -734,14 +819,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2C2C3E',
-    marginHorizontal: 20,
-    marginBottom: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 16,
     borderRadius: 12,
-    gap: 12,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#3A3A4E',
+    gap: 12,
   },
   mapInputContent: {
     flex: 1,
@@ -755,49 +838,87 @@ const styles = StyleSheet.create({
   mapInputValue: {
     fontSize: 15,
     color: '#FFFFFF',
+    fontWeight: '500',
     fontFamily: 'System',
   },
-  inputSection: {
+  routePreviewSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    fontFamily: 'System',
+  },
+  miniMap: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  calculatingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
     backgroundColor: '#2C2C3E',
-    marginHorizontal: 20,
-    marginBottom: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 5,
     borderRadius: 12,
     gap: 12,
+  },
+  calculatingText: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    fontFamily: 'System',
+  },
+  routeInfoCard: {
+    flexDirection: 'row',
+    backgroundColor: '#2C2C3E',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'space-around',
     borderWidth: 1,
     borderColor: '#3A3A4E',
   },
-  input: {
+  routeInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     flex: 1,
-    fontSize: 15,
-    color: '#FFFFFF',
-    paddingVertical: 12,
+  },
+  routeInfoDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#3A3A4E',
+  },
+  routeInfoLabel: {
+    fontSize: 12,
+    color: '#7F8C8D',
     fontFamily: 'System',
   },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+  routeInfoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'System',
+    marginLeft: 'auto',
   },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#2C2C3E',
-    marginHorizontal: 20,
-    marginBottom: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 15,
     borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#3A3A4E',
   },
   optionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   optionLabel: {
     fontSize: 15,
@@ -810,127 +931,50 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   optionValue: {
-    fontSize: 14,
-    color: '#7F8C8D',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#5B9FAD',
     fontFamily: 'System',
   },
-  priceSection: {
+  inputSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#2C2C3E',
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 16,
     borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#3A3A4E',
+    gap: 12,
   },
-  priceSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  input: {
+    flex: 1,
+    fontSize: 15,
     color: '#FFFFFF',
     fontFamily: 'System',
   },
-  freeRideToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  notesInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
-  freeRideText: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    fontFamily: 'System',
-  },
-  freeRideTextActive: {
-    color: '#5B9FAD',
-    fontWeight: '600',
-  },
-  priceInputContainer: {
-    gap: 8,
-  },
-  recommendedPrice: {
-    fontSize: 12,
-    color: '#5B9FAD',
-    marginTop: 4,
-    marginLeft: 12,
-    fontFamily: 'System',
-  },
-  femaleOnlyContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 105, 180, 0.1)',
-    marginHorizontal: 20,
+  checkboxSection: {
     marginBottom: 12,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FF69B4',
   },
-  femaleOnlyLeft: {
+  checkbox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    flex: 1,
   },
-  femaleOnlyTitle: {
+  checkboxLabel: {
     fontSize: 15,
-    fontWeight: '600',
     color: '#FFFFFF',
     fontFamily: 'System',
   },
-  femaleOnlySubtitle: {
-    fontSize: 12,
-    color: '#7F8C8D',
-    marginTop: 2,
-    fontFamily: 'System',
-  },
-  switch: {
-    width: 50,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#3A3A4E',
-    padding: 2,
-    justifyContent: 'center',
-  },
-  switchActive: {
-    backgroundColor: '#FF69B4',
-  },
-  switchThumb: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#FFFFFF',
-  },
-  switchThumbActive: {
-    alignSelf: 'flex-end',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(91, 159, 173, 0.1)',
-    padding: 15,
-    borderRadius: 12,
-    gap: 10,
-    marginHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#5B9FAD',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#5B9FAD',
-    lineHeight: 18,
-    fontFamily: 'System',
+  checkboxDisabled: {
+    color: '#3A3A4E',
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    padding: 20,
     borderTopWidth: 1,
     borderTopColor: '#2C2C3E',
   },
@@ -948,29 +992,31 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  postButtonDisabled: {
+    backgroundColor: '#3A3A4E',
+  },
   postButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'System',
   },
-  modalOverlay: {
+  modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#1A1A2E',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '70%',
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    justifyContent: 'space-between',
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#2C2C3E',
   },
@@ -980,32 +1026,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: 'System',
   },
-  modalScroll: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
+  modalBody: {
+    padding: 20,
   },
   vehicleOption: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2C2C3E',
-    padding: 16,
     borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#3A3A4E',
     gap: 12,
   },
   vehicleOptionSelected: {
-    backgroundColor: '#5B9FAD',
     borderColor: '#5B9FAD',
-  },
-  vehicleOptionIcon: {
-    width: 50,
-    height: 50,
     backgroundColor: 'rgba(91, 159, 173, 0.1)',
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   vehicleOptionInfo: {
     flex: 1,
@@ -1017,34 +1054,299 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontFamily: 'System',
   },
-  vehicleOptionNameSelected: {
-    color: '#FFFFFF',
-  },
-  vehicleOptionModel: {
+  vehicleOptionDetails: {
     fontSize: 13,
     color: '#7F8C8D',
     fontFamily: 'System',
   },
-  vehicleOptionModelSelected: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  addVehicleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2C2C3E',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    gap: 8,
-    borderWidth: 2,
-    borderColor: '#5B9FAD',
-    borderStyle: 'dashed',
-  },
-  addVehicleText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#5B9FAD',
-    fontFamily: 'System',
-  },
+  priceHint: {
+  fontSize: 13,
+  color: '#2ECC71',
+  marginTop: -4,
+  marginBottom: 8,
+  fontStyle: 'italic',
+  fontFamily: 'System',
+},
+toggleButtonActivePink: {
+  backgroundColor: '#FF69B4',
+  borderColor: '#FF69B4',
+},
+datePickerButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#2C2C3E',
+  borderRadius: 12,
+  padding: 18,
+  borderWidth: 2,
+  borderColor: '#5B9FAD',
+  gap: 12,
+  marginBottom: 16,
+},
+datePickerText: {
+  flex: 1,
+  fontSize: 16,
+  color: '#FFFFFF',
+  fontWeight: '500',
+  fontFamily: 'System',
+},
+helperText: {
+  fontSize: 13,
+  color: '#7F8C8D',
+  marginBottom: 8,
+  fontStyle: 'italic',
+  fontFamily: 'System',
+},
+priceRecommendationBox: {
+  flexDirection: 'row',
+  backgroundColor: 'rgba(243, 156, 18, 0.15)',
+  borderRadius: 16,
+  padding: 20,
+  marginBottom: 20,
+  gap: 16,
+  borderWidth: 2,
+  borderColor: '#F39C12',
+  shadowColor: '#F39C12',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 5,
+},
+priceRecommendationText: {
+  flex: 1,
+},
+priceRecommendationLabel: {
+  fontSize: 14,
+  color: '#F39C12',
+  fontWeight: '600',
+  marginBottom: 4,
+  fontFamily: 'System',
+},
+priceRecommendationAmount: {
+  fontSize: 12,
+  color: '#7F8C8D',
+  marginBottom: 8,
+  fontFamily: 'System',
+},
+priceRecommendationPrice: {
+  fontSize: 28,
+  fontWeight: 'bold',
+  color: '#F39C12',
+  fontFamily: 'System',
+},
+femaleOnlySection: {
+  backgroundColor: 'rgba(255, 105, 180, 0.1)',
+  borderRadius: 16,
+  padding: 20,
+  marginBottom: 20,
+  borderWidth: 2,
+  borderColor: '#FF69B4',
+},
+femaleOnlyHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  marginBottom: 8,
+},
+femaleOnlyTitle: {
+  fontSize: 18,
+  fontWeight: '600',
+  color: '#FFFFFF',
+  fontFamily: 'System',
+},
+femaleOnlyDescription: {
+  fontSize: 14,
+  color: '#7F8C8D',
+  marginBottom: 16,
+  lineHeight: 20,
+  fontFamily: 'System',
+},
+toggleButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#2C2C3E',
+  borderRadius: 30,
+  padding: 4,
+  gap: 12,
+  borderWidth: 2,
+  borderColor: '#3A3A4E',
+},
+toggleButtonActivePink: {
+  backgroundColor: '#FF69B4',
+  borderColor: '#FF69B4',
+},
+toggleButtonDisabled: {
+  opacity: 0.5,
+},
+toggleIndicator: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#3A3A4E',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+toggleIndicatorActive: {
+  backgroundColor: '#FFFFFF',
+},
+toggleLabel: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#7F8C8D',
+  paddingRight: 16,
+  fontFamily: 'System',
+},
+toggleLabelActive: {
+  color: '#FFFFFF',
+},
+toggleLabelDisabled: {
+  color: '#3A3A4E',
+},
+inputLabelLarge: {
+  fontSize: 18,
+  fontWeight: '700',
+  color: '#FFFFFF',
+  marginBottom: 8,
+  fontFamily: 'System',
+},
+helperTextBold: {
+  fontSize: 14,
+  color: '#5B9FAD',
+  marginBottom: 12,
+  fontWeight: '600',
+  fontFamily: 'System',
+},
+inputLabelYellow: {
+  fontSize: 18,
+  fontWeight: '700',
+  color: '#F39C12',
+  marginBottom: 12,
+  fontFamily: 'System',
+},
+femaleOnlySection: {
+  backgroundColor: 'rgba(255, 105, 180, 0.08)',
+  borderRadius: 12,
+  padding: 16,
+  marginBottom: 20,
+  borderWidth: 1,
+  borderColor: '#FF69B4',
+},
+femaleOnlyHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+},
+femaleOnlyTextContainer: {
+  flex: 1,
+},
+femaleOnlyTitle: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#FFFFFF',
+  marginBottom: 2,
+  fontFamily: 'System',
+},
+femaleOnlyDescription: {
+  fontSize: 12,
+  color: '#7F8C8D',
+  fontFamily: 'System',
+},
+freeRideSection: {
+  backgroundColor: 'rgba(46, 204, 113, 0.08)',
+  borderRadius: 12,
+  padding: 16,
+  marginBottom: 20,
+  borderWidth: 1,
+  borderColor: '#2ECC71',
+},
+freeRideHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+},
+freeRideTextContainer: {
+  flex: 1,
+},
+freeRideTitle: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#FFFFFF',
+  marginBottom: 2,
+  fontFamily: 'System',
+},
+freeRideDescription: {
+  fontSize: 12,
+  color: '#7F8C8D',
+  fontFamily: 'System',
+},
+compactToggle: {
+  width: 50,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: '#3A3A4E',
+  padding: 2,
+  justifyContent: 'center',
+},
+compactTogglePink: {
+  backgroundColor: '#FF69B4',
+},
+compactToggleGreen: {
+  backgroundColor: '#3A3A4E',
+},
+compactToggleGreenActive: {
+  backgroundColor: '#2ECC71',
+},
+compactToggleDisabled: {
+  opacity: 0.3,
+},
+compactToggleCircle: {
+  width: 24,
+  height: 24,
+  borderRadius: 12,
+  backgroundColor: '#7F8C8D',
+  transform: [{ translateX: 0 }],
+},
+compactToggleCircleActive: {
+  backgroundColor: '#FFFFFF',
+  transform: [{ translateX: 22 }],
+},
+toggleContainerLarge: {
+  flexDirection: 'row',
+  backgroundColor: '#2C2C3E',
+  borderRadius: 20,
+  padding: 8,
+  marginBottom: 25,
+  gap: 10,
+  borderWidth: 2,
+  borderColor: '#3A3A4E',
+  height: 80,
+},
+toggleButtonLarge: {
+  flex: 1,
+  borderRadius: 15,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+toggleButtonLargeActive: {
+  backgroundColor: '#5B9FAD',
+  shadowColor: '#5B9FAD',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.4,
+  shadowRadius: 8,
+  elevation: 5,
+},
+toggleButtonContent: {
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+},
+toggleTextLarge: {
+  fontSize: 18,
+  fontWeight: '700',
+  color: '#5B9FAD',
+  fontFamily: 'System',
+},
+toggleTextLargeActive: {
+  color: '#FFFFFF',
+  fontWeight: '800',
+},
 });

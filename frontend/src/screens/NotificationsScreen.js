@@ -21,6 +21,10 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import { getDoc } from 'firebase/firestore';
+import { Alert } from 'react-native';
+import { getDocs } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
@@ -83,35 +87,80 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const handleNotificationPress = async (notification) => {
-    // Mark as read
-    if (!notification.isRead) {
-      await markAsRead(notification.id);
-    }
+  if (!notification.isRead) {
+    await markAsRead(notification.id);
+  }
 
-    // Navigate based on notification type
-    switch (notification.type) {
-      case 'ride_request':
+  switch (notification.type) {
+    case 'ride_request':
+      if (notification.rideId) {
         navigation.navigate('RideRequests', { rideId: notification.rideId });
-        break;
-      case 'ride_accepted':
-      case 'ride_started':
-        navigation.navigate('RideDetails', { ride: { id: notification.rideId } });
-        break;
-      case 'ride_completed':
-        // Navigate to rating if not rated
-        if (notification.data?.bookingId) {
-          navigation.navigate('Rating', { 
-            booking: { 
-              id: notification.data.bookingId,
-              ...notification.data 
-            } 
-          });
-        }
-        break;
-      default:
-        break;
+      }
+      break;
+    case 'ride_accepted':
+    case 'ride_started':
+  if (notification.rideId) {
+    // Check if rider has an active booking for this ride
+    const bookingQuery = query(
+      collection(db, 'bookings'),
+      where('rideId', '==', notification.rideId),
+      where('riderId', '==', user.uid),
+      where('status', 'in', ['in_progress', 'scheduled', 'confirmed'])
+    );
+    const bookingSnapshot = await getDocs(bookingQuery);
+    
+    if (!bookingSnapshot.empty) {
+      // Rider has active booking, show RideDetails
+      const rideDoc = await getDoc(doc(db, 'rides', notification.rideId));
+      if (rideDoc.exists()) {
+        navigation.navigate('RideDetails', { 
+          ride: { id: notification.rideId, ...rideDoc.data() } 
+        });
+      }
+    } else {
+      // No booking, show summary
+      const rideDoc = await getDoc(doc(db, 'rides', notification.rideId));
+      if (rideDoc.exists()) {
+        const rideData = rideDoc.data();
+        Alert.alert(
+          'Ride Summary',
+          `From: ${rideData.pickupLocation}\nTo: ${rideData.destination}\nStatus: ${rideData.status}`,
+          [{ text: 'OK' }]
+        );
+      }
     }
-  };
+  }
+  break;
+    // Update the handleNotificationPress function for ride_completed (around line 80-100):
+case 'ride_completed':
+  if (notification.data?.bookingId) {
+    // Check if we've already shown the completion screen
+    const hasSeenCompletion = await AsyncStorage.getItem(`ride_completed_${notification.data.bookingId}`);
+    
+    if (!hasSeenCompletion) {
+      // Show completion screen first
+      await AsyncStorage.setItem(`ride_completed_${notification.data.bookingId}`, 'true');
+      navigation.navigate('RideCompletionRider', {
+        driverName: notification.data.driverName,
+      cost: notification.data.cost || 0,
+      bookingId: notification.data.bookingId,
+      driverId: notification.data.driverId,
+      rideId: notification.rideId,
+      });
+    } else {
+      // Already saw completion, show summary
+      Alert.alert(
+        'Ride Completed',
+        `Your ride with ${notification.data.driverName} has been completed.${notification.data.cost ? ` Amount: ${notification.data.cost} BHD` : ''}`,
+        [{ text: 'OK' }]
+      );
+    }
+  }
+  break;
+    default:
+      break;
+  }
+};
 
   const getNotificationIcon = (type) => {
     switch (type) {

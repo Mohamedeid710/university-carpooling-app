@@ -1,4 +1,4 @@
-// src/screens/ActiveRideScreen.js
+// src/screens/ActiveRideScreen.js - COMPLETE UPDATED
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,18 +8,20 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
+  Linking,
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  doc,
-  getDoc,
-  updateDoc,
   collection,
   query,
   where,
-  getDocs,
+  onSnapshot,
+  doc,
+  updateDoc,
+  getDoc,
   addDoc,
-  setDoc,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 
@@ -27,352 +29,198 @@ export default function ActiveRideScreen({ navigation, route }) {
   const { rideId } = route.params;
   const [ride, setRide] = useState(null);
   const [riders, setRiders] = useState([]);
+  const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [endingRide, setEndingRide] = useState(false);
-  const [locationInterval, setLocationInterval] = useState(null);
+  const [completing, setCompleting] = useState(false);
 
   const user = auth.currentUser;
 
   useEffect(() => {
-    loadRideData();
-    return () => {
-      if (locationInterval) {
-        clearInterval(locationInterval);
-      }
-    };
+    loadRideDetails();
+    subscribeToRiders();
   }, []);
 
-  const loadRideData = async () => {
+  const loadRideDetails = async () => {
     try {
-      // Load ride details
       const rideDoc = await getDoc(doc(db, 'rides', rideId));
       if (rideDoc.exists()) {
         const rideData = { id: rideDoc.id, ...rideDoc.data() };
         setRide(rideData);
 
-        // If ride is active, start location updates
-        if (rideData.status === 'active') {
-          startLocationTracking();
+        if (rideData.routePolyline) {
+          try {
+            setRouteCoordinates(JSON.parse(rideData.routePolyline));
+          } catch (e) {
+            console.error('Error parsing route:', e);
+          }
         }
       }
-
-      // Load accepted riders
-      const bookingsQuery = query(
-        collection(db, 'bookings'),
-        where('rideId', '==', rideId),
-        where('status', '==', 'confirmed')
-      );
-      const bookingsSnapshot = await getDocs(bookingsQuery);
-      const ridersData = bookingsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setRiders(ridersData);
     } catch (error) {
-      console.error('Error loading ride data:', error);
-      Alert.alert('Error', 'Failed to load ride data');
+      console.error('Error loading ride:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const startLocationTracking = () => {
-    // Simulate location updates every 10 seconds
-    const interval = setInterval(() => {
-      updateSimulatedLocation();
-    }, 10000);
-    setLocationInterval(interval);
-  };
+  const subscribeToRiders = () => {
+    const q = query(
+      collection(db, 'bookings'),
+      where('rideId', '==', rideId),
+      where('status', 'in', ['confirmed', 'in_progress', 'scheduled'])
+    );
 
-  const updateSimulatedLocation = async () => {
-    try {
-      // Simulate movement by adding small random changes
-      const rideDoc = await getDoc(doc(db, 'rides', rideId));
-      const currentRide = rideDoc.data();
-      
-      const currentLat = currentRide.driverLocation?.latitude || currentRide.pickupCoordinates.latitude;
-      const currentLng = currentRide.driverLocation?.longitude || currentRide.pickupCoordinates.longitude;
-
-      // Small random movement towards destination
-      const destLat = currentRide.destinationCoordinates.latitude;
-      const destLng = currentRide.destinationCoordinates.longitude;
-
-      const latDiff = (destLat - currentLat) * 0.05; // Move 5% closer
-      const lngDiff = (destLng - currentLng) * 0.05;
-
-      const newLocation = {
-        latitude: currentLat + latDiff + (Math.random() - 0.5) * 0.001,
-        longitude: currentLng + lngDiff + (Math.random() - 0.5) * 0.001,
-      };
-
-      // Update location in rides collection
-      await updateDoc(doc(db, 'rides', rideId), {
-        driverLocation: newLocation,
-        lastLocationUpdate: new Date().toISOString(),
-      });
-
-      // Update location in activeRides collection
-      await setDoc(
-        doc(db, 'activeRides', rideId),
-        {
-          rideId: rideId,
-          driverId: user.uid,
-          driverName: currentRide.driverName,
-          driverPhone: currentRide.driverPhone,
-          vehicleModel: currentRide.vehicleModel,
-          vehiclePlate: currentRide.vehiclePlate,
-          status: 'en-route',
-          currentLocation: newLocation,
-          pickupLocation: currentRide.pickupLocation,
-          destination: currentRide.destination,
-          riders: riders.map(r => ({
-            riderId: r.riderId,
-            riderName: r.riderName,
-            status: 'confirmed',
-          })),
-          startedAt: currentRide.startedAt,
-          lastUpdate: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-
-      console.log('Location updated:', newLocation);
-    } catch (error) {
-      console.error('Error updating location:', error);
-    }
+    return onSnapshot(q, async (snapshot) => {
+      const ridersData = [];
+      for (const docSnapshot of snapshot.docs) {
+        const booking = { id: docSnapshot.id, ...docSnapshot.data() };
+        
+        // Load rider info
+        try {
+          const riderDoc = await getDoc(doc(db, 'users', booking.riderId));
+          if (riderDoc.exists()) {
+            booking.riderInfo = riderDoc.data();
+          }
+        } catch (error) {
+          console.error('Error loading rider info:', error);
+        }
+        
+        ridersData.push(booking);
+      }
+      setRiders(ridersData);
+    });
   };
 
   const handleStartRide = async () => {
-    if (riders.length === 0) {
-      Alert.alert(
-        'No Riders Yet',
-        'You can start the ride now, but no riders have joined yet. Riders can still request to join once you start.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Start Anyway', onPress: () => confirmStartRide() },
-        ]
-      );
-      return;
-    }
-
-    confirmStartRide();
-  };
-
-  const confirmStartRide = async () => {
-    setLoading(true);
     try {
-      const now = new Date().toISOString();
-
-      // Update ride status
       await updateDoc(doc(db, 'rides', rideId), {
         status: 'active',
-        startedAt: now,
-        driverLocation: ride.pickupCoordinates,
-        lastLocationUpdate: now,
       });
 
-      // Create activeRide document
-      await setDoc(doc(db, 'activeRides', rideId), {
-        rideId: rideId,
-        driverId: user.uid,
-        driverName: ride.driverName,
-        driverPhone: ride.driverPhone,
-        vehicleModel: ride.vehicleModel,
-        vehiclePlate: ride.vehiclePlate,
-        status: 'en-route',
-        currentLocation: ride.pickupCoordinates,
-        pickupLocation: ride.pickupLocation,
-        destination: ride.destination,
-        riders: riders.map(r => ({
-          riderId: r.riderId,
-          riderName: r.riderName,
-          status: 'confirmed',
-        })),
-        startedAt: now,
-        lastUpdate: now,
-      });
+      // Update all bookings to in_progress
+      riders.forEach(async (rider) => {
+        await updateDoc(doc(db, 'bookings', rider.id), {
+          status: 'in_progress',
+        });
 
-      // Send notifications to all riders
-      for (const rider of riders) {
+        // Send notification
         await addDoc(collection(db, 'notifications'), {
           userId: rider.riderId,
           type: 'ride_started',
-          title: 'Your Ride Has Started! 🚗',
-          message: `${ride.driverName} has started the ride to ${ride.destination}`,
+          title: 'Ride Started',
+          message: 'Your ride has started',
           rideId: rideId,
           isRead: false,
-          createdAt: now,
-          data: {
-            rideId: rideId,
-            driverId: user.uid,
-            driverName: ride.driverName,
-          },
+          createdAt: new Date().toISOString(),
         });
-      }
+      });
 
-      Alert.alert('Ride Started!', 'Your ride is now active. Safe travels!');
-      
-      // Reload data and start tracking
-      await loadRideData();
+      Alert.alert('Success', 'Ride started!');
+      loadRideDetails();
     } catch (error) {
       console.error('Error starting ride:', error);
       Alert.alert('Error', 'Failed to start ride');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleEndRide = async () => {
+  const handleCompleteRide = async () => {
     Alert.alert(
-      'End Ride',
-      'Are you sure you want to end this ride? This action cannot be undone.',
+      'Complete Ride',
+      'Are you sure you want to end this ride?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'End Ride',
-          style: 'destructive',
-          onPress: confirmEndRide,
+          text: 'Complete',
+          onPress: async () => {
+            setCompleting(true);
+            const ridersData = [];
+            try {
+              await updateDoc(doc(db, 'rides', rideId), {
+                status: 'completed',
+                completedAt: new Date().toISOString(),
+              });
+
+              // Complete all bookings and navigate riders to payment screen
+              for (const rider of riders) {
+                await updateDoc(doc(db, 'bookings', rider.id), {
+                  status: 'completed',
+                  completedAt: new Date().toISOString(),
+                });
+
+                // Send notification with booking data
+               // Collect rider data for completion screen
+                ridersData.push({
+                  name: rider.riderName,
+                  cost: rider.estimatedCost || ride.estimatedCost || 0,
+                });
+
+                // Send notification with booking data
+                await addDoc(collection(db, 'notifications'), {
+                  userId: rider.riderId,
+                  type: 'ride_completed',
+                  title: 'Ride Completed',
+                  message: `Your ride to ${ride.destination} has been completed`,
+                  rideId: rideId,
+                  data: {
+                    bookingId: rider.id,
+                    driverName: user.displayName || ride.driverName,
+                    driverId: user.uid,
+                    cost: rider.estimatedCost || ride.estimatedCost || 0,
+                  },
+                  isRead: false,
+                  createdAt: new Date().toISOString(),
+                });
+              }
+
+              const totalCost = ridersData.reduce((sum, r) => sum + r.cost, 0);
+
+              // Navigate to completion screen for driver
+              navigation.replace('RideCompletionDriver', {
+                riders: ridersData,
+                totalCost: totalCost,
+              });
+            } catch (error) {
+              console.error('Error completing ride:', error);
+              Alert.alert('Error', 'Failed to complete ride');
+            } finally {
+              setCompleting(false);
+            }
+          },
         },
       ]
     );
   };
 
-  const confirmEndRide = async () => {
-    setEndingRide(true);
-    try {
-      const now = new Date().toISOString();
-
-      // Stop location tracking
-      if (locationInterval) {
-        clearInterval(locationInterval);
-        setLocationInterval(null);
-      }
-
-      // Update ride status
-      await updateDoc(doc(db, 'rides', rideId), {
-        status: 'completed',
-        completedAt: now,
-      });
-
-      // Update all bookings
-      for (const rider of riders) {
-        await updateDoc(doc(db, 'bookings', rider.id), {
-          status: 'completed',
-          completedAt: now,
-        });
-
-        // Send notification to rider
-        await addDoc(collection(db, 'notifications'), {
-          userId: rider.riderId,
-          type: 'ride_completed',
-          title: 'Ride Completed! 🎉',
-          message: `Your ride with ${ride.driverName} has been completed. Please rate your experience.`,
-          rideId: rideId,
-          isRead: false,
-          createdAt: now,
-          data: {
-            rideId: rideId,
-            bookingId: rider.id,
-          },
-        });
-      }
-
-      // Delete from activeRides
-      await updateDoc(doc(db, 'activeRides', rideId), {
-        status: 'completed',
-      });
-
-      Alert.alert(
-        'Ride Completed! 🎉',
-        `Great job! Your ride to ${ride.destination} has been completed.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Home'),
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Error ending ride:', error);
-      Alert.alert('Error', 'Failed to end ride');
-    } finally {
-      setEndingRide(false);
+  const handleCallRider = (phone) => {
+    if (!phone) {
+      Alert.alert('Not Available', 'Rider phone number is not available');
+      return;
     }
+    Linking.openURL(`tel:${phone}`);
   };
 
-  const handleCancelRide = async () => {
-    Alert.alert(
-      'Cancel Ride',
-      'Are you sure you want to cancel this ride? All riders will be notified.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: confirmCancelRide,
-        },
-      ]
-    );
+  const openRiderLocation = (coords) => {
+    const url = `https://www.google.com/maps/search/?api=1&query=${coords.latitude},${coords.longitude}`;
+    Linking.openURL(url);
   };
 
-  const confirmCancelRide = async () => {
-    setLoading(true);
-    try {
-      const now = new Date().toISOString();
-
-      // Stop location tracking
-      if (locationInterval) {
-        clearInterval(locationInterval);
-        setLocationInterval(null);
-      }
-
-      // Update ride status
-      await updateDoc(doc(db, 'rides', rideId), {
-        status: 'cancelled',
-        completedAt: now,
-      });
-
-      // Cancel all bookings
-      for (const rider of riders) {
-        await updateDoc(doc(db, 'bookings', rider.id), {
-          status: 'cancelled',
-        });
-
-        // Notify rider
-        await addDoc(collection(db, 'notifications'), {
-          userId: rider.riderId,
-          type: 'ride_cancelled',
-          title: 'Ride Cancelled',
-          message: `${ride.driverName} has cancelled the ride to ${ride.destination}`,
-          rideId: rideId,
-          isRead: false,
-          createdAt: now,
-          data: {
-            rideId: rideId,
-          },
-        });
-      }
-
-      // Delete from activeRides
-      if (ride.status === 'active') {
-        await updateDoc(doc(db, 'activeRides', rideId), {
-          status: 'cancelled',
-        });
-      }
-
-      Alert.alert('Ride Cancelled', 'The ride has been cancelled and all riders have been notified.');
-      navigation.navigate('Home');
-    } catch (error) {
-      console.error('Error cancelling ride:', error);
-      Alert.alert('Error', 'Failed to cancel ride');
-    } finally {
-      setLoading(false);
-    }
+  const generateStaticMapUrl = (coords) => {
+    const apiKey = 'AIzaSyDfdostSE5FbdXxXJ-2MUEpnGO7YKspK4k';
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${coords.latitude},${coords.longitude}&zoom=15&size=150x150&markers=color:red%7C${coords.latitude},${coords.longitude}&key=${apiKey}`;
   };
 
   if (loading) {
     return (
       <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {ride?.status === 'scheduled' ? 'Scheduled Ride' : 
+            ride?.status === 'active' ? 'Active Ride' : 'Ride'}
+         </Text>
+          <View style={{ width: 24 }} />
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#5B9FAD" />
         </View>
@@ -380,194 +228,187 @@ export default function ActiveRideScreen({ navigation, route }) {
     );
   }
 
-  if (!ride) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={60} color="#E74C3C" />
-          <Text style={styles.errorText}>Ride not found</Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  const isActive = ride.status === 'active';
-  const isScheduled = ride.status === 'scheduled';
-
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isActive ? 'Active Ride' : 'Scheduled Ride'}
-        </Text>
-        <TouchableOpacity onPress={() => navigation.navigate('RideRequests', { rideId })}>
-          <View style={styles.notificationBadge}>
-            <Ionicons name="people" size={24} color="#5B9FAD" />
-            {riders.length > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{riders.length}</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Active Ride</Text>
+       {ride && ride.pickupCoordinates && ride.destinationCoordinates && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('RouteMap', { ride })}
+          >
+            <Ionicons name="map" size={24} color="#5B9FAD" />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Status Bar */}
-      {isActive && (
-        <View style={styles.statusBar}>
-          <View style={styles.statusLeft}>
-            <View style={styles.pulseDot} />
-            <Text style={styles.statusText}>RIDE IN PROGRESS</Text>
-          </View>
-          <Text style={styles.statusTime}>
-            {new Date(ride.startedAt).toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
-        </View>
-      )}
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Route Info */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Route</Text>
-          <View style={styles.routeContainer}>
-            <View style={styles.routeItem}>
-              <Ionicons name="ellipse" size={16} color="#5B9FAD" />
-              <Text style={styles.routeText}>{ride.pickupLocation}</Text>
-            </View>
-            <View style={styles.routeLine} />
-            <View style={styles.routeItem}>
-              <Ionicons name="location" size={16} color="#5B9FAD" />
-              <Text style={styles.routeText}>{ride.destination}</Text>
-            </View>
+        {/* Map Preview */}
+        {ride?.pickupCoordinates && ride?.destinationCoordinates && (
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={{
+              latitude: (ride.pickupCoordinates.latitude + ride.destinationCoordinates.latitude) / 2,
+              longitude: (ride.pickupCoordinates.longitude + ride.destinationCoordinates.longitude) / 2,
+              latitudeDelta: Math.abs(ride.pickupCoordinates.latitude - ride.destinationCoordinates.latitude) * 2,
+              longitudeDelta: Math.abs(ride.pickupCoordinates.longitude - ride.destinationCoordinates.longitude) * 2,
+            }}
+            scrollEnabled={false}
+            zoomEnabled={false}
+          >
+            <Marker coordinate={ride.pickupCoordinates} pinColor="#5B9FAD" />
+            <Marker coordinate={ride.destinationCoordinates} pinColor="#E74C3C" />
+            {routeCoordinates.length > 0 && (
+              <Polyline coordinates={routeCoordinates} strokeColor="#5B9FAD" strokeWidth={3} />
+            )}
+          </MapView>
+        )}
+
+        {/* Ride Info Card */}
+        <View style={styles.rideInfoCard}>
+          <View style={styles.infoRow}>
+            <Ionicons name="ellipse" size={12} color="#5B9FAD" />
+            <Text style={styles.infoText}>{ride?.pickupLocation}</Text>
           </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="location" size={12} color="#E74C3C" />
+            <Text style={styles.infoText}>{ride?.destination}</Text>
+          </View>
+          {ride?.distance && (
+            <View style={styles.infoRow}>
+              <Ionicons name="navigate" size={12} color="#7F8C8D" />
+              <Text style={styles.infoText}>{ride.distance}</Text>
+            </View>
+          )}
         </View>
 
-        {/* Riders List */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            Riders ({riders.length}/{ride.totalSeats})
+        {/* Riders Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Riders ({riders.length}/{ride?.totalSeats - ride?.availableSeats || 0})
           </Text>
+
           {riders.length === 0 ? (
-            <View style={styles.emptyRiders}>
-              <Ionicons name="people-outline" size={40} color="#3A3A4E" />
-              <Text style={styles.emptyRidersText}>No riders yet</Text>
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={50} color="#3A3A4E" />
+              <Text style={styles.emptyText}>No riders yet</Text>
             </View>
           ) : (
             riders.map((rider) => (
               <View key={rider.id} style={styles.riderCard}>
-                <View style={styles.riderAvatar}>
-                  <Text style={styles.riderInitial}>
-                    {rider.riderName?.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.riderInfo}>
-                  <Text style={styles.riderName}>{rider.riderName}</Text>
-                  <View style={styles.riderDetail}>
-                    <Ionicons name="location" size={14} color="#7F8C8D" />
-                    <Text style={styles.riderDetailText} numberOfLines={1}>
-                      {rider.pickupLocation}
-                    </Text>
+                {/* Rider Info */}
+                <View style={styles.riderHeader}>
+                  <View style={styles.riderAvatar}>
+                    {rider.riderInfo?.profilePictureUrl ? (
+                      <Image
+                        source={{ uri: rider.riderInfo.profilePictureUrl }}
+                        style={styles.riderAvatarImage}
+                      />
+                    ) : (
+                      <Text style={styles.riderInitial}>
+                        {rider.riderName?.charAt(0).toUpperCase() || 'R'}
+                      </Text>
+                    )}
                   </View>
+                  <View style={styles.riderInfo}>
+                    <Text style={styles.riderName}>{rider.riderName}</Text>
+                    {rider.riderInfo?.averageRating > 0 && (
+                      <View style={styles.ratingRow}>
+                        <Ionicons name="star" size={14} color="#FFD700" />
+                        <Text style={styles.ratingText}>
+                          {rider.riderInfo.averageRating.toFixed(1)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {rider.riderInfo?.phone && (
+                    <TouchableOpacity
+                      style={styles.callButton}
+                      onPress={() => handleCallRider(rider.riderInfo.phone)}
+                    >
+                      <Ionicons name="call" size={20} color="#5B9FAD" />
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <TouchableOpacity
-                  style={styles.callButton}
-                  onPress={() => {
-                    const phone = rider.riderPhone;
-                    Alert.alert('Call Rider', `Call ${rider.riderName}?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Call', onPress: () => console.log('Call:', phone) },
-                    ]);
-                  }}
-                >
-                  <Ionicons name="call" size={20} color="#5B9FAD" />
-                </TouchableOpacity>
+
+                {/* Pickup Location */}
+                <View style={styles.pickupSection}>
+  <Text style={styles.pickupLabel}>Pickup Location:</Text>
+  <Text style={styles.pickupText}>{rider.pickupLocation}</Text>
+  
+  {/* Show pickup message if exists */}
+  {rider.message && (
+    <View style={styles.messageBox}>
+      <Ionicons name="chatbubble" size={16} color="#5B9FAD" />
+      <Text style={styles.messageText}>
+        Message: {rider.message}
+      </Text>
+    </View>
+  )}
+
+                  {/* Map Preview */}
+                  {rider.pickupCoordinates && (
+                    <TouchableOpacity
+                      style={styles.mapPreviewContainer}
+                      onPress={() => openRiderLocation(rider.pickupCoordinates)}
+                    >
+                      <Image
+                        source={{ uri: generateStaticMapUrl(rider.pickupCoordinates) }}
+                        style={styles.mapPreview}
+                      />
+                      <View style={styles.mapOverlay}>
+                        <Ionicons name="navigate" size={16} color="#5B9FAD" />
+                        <Text style={styles.mapOverlayText}>Open in Maps</Text>
+                      </View>
+                    </TouchableOpacity>
+                    )}
+                    {/* Pickup Notes */}
+                  {rider.pickupLocation && (
+                    <View style={styles.pickupNoteBox}>
+                      <Ionicons name="location" size={16} color="#5B9FAD" />
+                      <Text style={styles.pickupNoteText}>{rider.pickupLocation}</Text>
+                    </View>
+                  )}
+                  {rider.message && (
+                    <View style={styles.pickupNoteBox}>
+                      <Ionicons name="chatbubble" size={16} color="#5B9FAD" />
+                      <Text style={styles.pickupNoteText}>{rider.message}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
             ))
           )}
         </View>
-
-        {/* Ride Details */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Details</Text>
-          <View style={styles.detailRow}>
-            <Ionicons name="car-sport" size={20} color="#7F8C8D" />
-            <Text style={styles.detailText}>{ride.vehicleModel}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Ionicons name="newspaper" size={20} color="#7F8C8D" />
-            <Text style={styles.detailText}>{ride.vehiclePlate}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Ionicons name="cash" size={20} color="#7F8C8D" />
-            <Text style={styles.detailText}>
-              {ride.isFree ? 'FREE' : `${ride.price} BHD per person`}
-            </Text>
-          </View>
-        </View>
-
-        {/* Warning for cancel */}
-        {(isScheduled || isActive) && (
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={handleCancelRide}
-          >
-            <Ionicons name="close-circle" size={20} color="#E74C3C" />
-            <Text style={styles.cancelButtonText}>Cancel Ride</Text>
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
-      {/* Action Button */}
-      {isScheduled && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.startButton}
-            onPress={handleStartRide}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="play-circle" size={24} color="#FFFFFF" />
-                <Text style={styles.startButtonText}>Start Ride Now</Text>
-              </>
-            )}
+      {/* Action Buttons */}
+      <View style={styles.footer}>
+        {ride?.status === 'scheduled' ? (
+          <TouchableOpacity style={styles.startButton} onPress={handleStartRide}>
+            <Ionicons name="play-circle" size={24} color="#FFFFFF" />
+            <Text style={styles.startButtonText}>Start Ride</Text>
           </TouchableOpacity>
-        </View>
-      )}
-
-      {isActive && (
-        <View style={styles.footer}>
+        ) : (
           <TouchableOpacity
-            style={styles.endButton}
-            onPress={handleEndRide}
-            disabled={endingRide}
+            style={styles.completeButton}
+            onPress={handleCompleteRide}
+            disabled={completing}
           >
-            {endingRide ? (
+            {completing ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
                 <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
-                <Text style={styles.endButtonText}>End Ride</Text>
+                <Text style={styles.completeButtonText}>Complete Ride</Text>
               </>
             )}
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+      </View>
     </View>
   );
 }
@@ -592,161 +433,96 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     fontFamily: 'System',
-  },
-  notificationBadge: {
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#E74C3C',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    fontFamily: 'System',
-  },
-  statusBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(46, 204, 113, 0.2)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2ECC71',
-  },
-  statusLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  pulseDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#2ECC71',
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2ECC71',
-    fontFamily: 'System',
-  },
-  statusTime: {
-    fontSize: 14,
-    color: '#2ECC71',
-    fontFamily: 'System',
+    flex: 1,
+    marginLeft: 16,
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#E74C3C',
-    marginTop: 20,
-    marginBottom: 20,
-    fontFamily: 'System',
-  },
-  backButton: {
-    backgroundColor: '#5B9FAD',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'System',
-  },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
   },
-  card: {
+  map: {
+    width: '100%',
+    height: 250,
+  },
+  rideInfoCard: {
     backgroundColor: '#2C2C3E',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#3A3A4E',
   },
-  cardTitle: {
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 16,
     fontFamily: 'System',
   },
-  routeContainer: {
-    gap: 8,
-  },
-  routeItem: {
-    flexDirection: 'row',
+  emptyState: {
     alignItems: 'center',
-    gap: 12,
+    paddingVertical: 40,
   },
-  routeLine: {
-    width: 2,
-    height: 24,
-    backgroundColor: '#3A3A4E',
-    marginLeft: 7,
-  },
-  routeText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#FFFFFF',
-    fontFamily: 'System',
-  },
-  emptyRiders: {
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  emptyRidersText: {
-    fontSize: 14,
+  emptyText: {
+    fontSize: 16,
     color: '#7F8C8D',
-    marginTop: 10,
+    marginTop: 12,
     fontFamily: 'System',
   },
   riderCard: {
+    backgroundColor: '#2C2C3E',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#3A3A4E',
+  },
+  riderHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A2E',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3A3A4E',
   },
   riderAvatar: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#5B9FAD',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
+  },
+  riderAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   riderInitial: {
-    color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#FFFFFF',
     fontFamily: 'System',
   },
   riderInfo: {
@@ -756,16 +532,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+    marginBottom: 4,
     fontFamily: 'System',
   },
-  riderDetail: {
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
+    gap: 4,
   },
-  riderDetailText: {
-    flex: 1,
+  ratingText: {
     fontSize: 13,
     color: '#7F8C8D',
     fontFamily: 'System',
@@ -778,37 +553,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
+  pickupSection: {
+    gap: 8,
   },
-  detailText: {
-    fontSize: 15,
-    color: '#FFFFFF',
+  pickupLabel: {
+    fontSize: 12,
+    color: '#7F8C8D',
     fontFamily: 'System',
   },
-  cancelButton: {
+  pickupText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    marginBottom: 8,
+    fontFamily: 'System',
+  },
+  mapPreviewContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  mapPreview: {
+    width: '100%',
+    height: 150,
+    borderRadius: 12,
+  },
+  mapOverlay: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(231, 76, 60, 0.1)',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#E74C3C',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
   },
-  cancelButtonText: {
-    color: '#E74C3C',
-    fontSize: 16,
+  mapOverlayText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: '#5B9FAD',
     fontFamily: 'System',
   },
   footer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     borderTopWidth: 1,
     borderTopColor: '#2C2C3E',
   },
@@ -817,39 +607,63 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
-    shadowColor: '#2ECC71',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
   },
   startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
     fontFamily: 'System',
   },
-  endButton: {
+  completeButton: {
     backgroundColor: '#5B9FAD',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
-    shadowColor: '#5B9FAD',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
   },
-  endButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
+  completeButtonText: {
+    fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
     fontFamily: 'System',
   },
+  pickupNoteBox: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(91, 159, 173, 0.1)',
+    padding: 10,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#5B9FAD',
+  },
+  pickupNoteText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#5B9FAD',
+    fontFamily: 'System',
+  },
+  messageBox: {
+  flexDirection: 'row',
+  backgroundColor: 'rgba(91, 159, 173, 0.1)',
+  padding: 12,
+  borderRadius: 10,
+  gap: 10,
+  marginTop: 10,
+  borderWidth: 1,
+  borderColor: '#5B9FAD',
+  alignItems: 'flex-start',
+},
+messageText: {
+  flex: 1,
+  fontSize: 14,
+  color: '#5B9FAD',
+  fontFamily: 'System',
+  lineHeight: 20,
+},
 });

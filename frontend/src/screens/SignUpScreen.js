@@ -16,6 +16,8 @@ import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Animated, Easing } from 'react-native';
 
 export default function SignUpScreen({ navigation }) {
   const [firstName, setFirstName] = useState('');
@@ -82,10 +84,14 @@ export default function SignUpScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+    <LinearGradient
+  colors={['#0F2027', '#203A43', '#2C5364']}
+  style={styles.gradient}
     >
+  <KeyboardAvoidingView 
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    style={styles.container}
+  >
       <TouchableOpacity 
         style={styles.backButton}
         onPress={() => navigation.goBack()}
@@ -245,6 +251,7 @@ export default function SignUpScreen({ navigation }) {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
@@ -386,4 +393,11 @@ const styles = StyleSheet.create({
     color: '#5B9FAD',
     fontWeight: 'bold',
   },
+  gradient: {
+  flex: 1,
+},
+container: {
+  flex: 1,
+  backgroundColor: 'transparent',
+},
 });

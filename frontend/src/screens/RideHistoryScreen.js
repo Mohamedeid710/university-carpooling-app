@@ -1,4 +1,4 @@
-// src/screens/RideHistoryScreen.js
+// src/screens/RideHistoryScreen.js - COMPLETE WITH "FREE" FIX
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -81,26 +81,27 @@ export default function RideHistoryScreen({ navigation }) {
 
   const RideCard = ({ ride, isBooking = false }) => {
     const departureDate = isBooking ? ride.departureTime : ride.departureTime;
-    const cost = isBooking ? ride.estimatedCost : ride.estimatedCost;
+    const cost = isBooking ? (ride.estimatedCost || ride.price || 0) : (ride.estimatedCost || ride.price || 0);
 
     const handlePress = () => {
-    if (!isBooking && (ride.status === 'active' || ride.status === 'scheduled')) {
-      // Driver viewing their own ride
-      navigation.navigate('ActiveRide', { rideId: ride.id });
-    }
-  };
+      if (!isBooking && (ride.status === 'active' || ride.status === 'scheduled')) {
+        navigation.navigate('ActiveRide', { rideId: ride.id });
+      }
+    };
 
     return (
       <TouchableOpacity 
-      style={styles.rideCard}
-      onPress={handlePress}
-      disabled={isBooking || (ride.status !== 'active' && ride.status !== 'scheduled')}
-    >
+        style={styles.rideCard}
+        onPress={handlePress}
+        disabled={isBooking || (ride.status !== 'active' && ride.status !== 'scheduled')}
+      >
         <View style={styles.rideCardContent}>
           <View style={styles.locationRow}>
             <Ionicons name="location" size={20} color="#5B9FAD" />
             <Text style={styles.locationText}>{ride.pickupLocation}</Text>
-            <Text style={styles.priceText}>{cost || 0} BHD</Text>
+            <Text style={styles.priceText}>
+              {cost === 0 || !cost ? 'FREE' : `${cost} BHD`}
+            </Text>
           </View>
 
           <View style={styles.locationRow}>
@@ -136,7 +137,6 @@ export default function RideHistoryScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
@@ -145,7 +145,6 @@ export default function RideHistoryScreen({ navigation }) {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabsContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'offered' && styles.tabActive]}
@@ -166,7 +165,6 @@ export default function RideHistoryScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#5B9FAD" />

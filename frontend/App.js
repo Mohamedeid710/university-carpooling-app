@@ -1,6 +1,6 @@
-// App.js
+// App.js - COMPLETE UPDATED
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "./src/config/firebase";
@@ -30,6 +30,12 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import MapPickerScreen from './src/screens/MapPickerScreen';
 import RouteMapScreen from './src/screens/RouteMapScreen';
+import RiderBookingDetailsScreen from './src/screens/RiderBookingDetailsScreen';
+import RideCompletedScreen from './src/screens/RideCompletedScreen';
+import RideCompletionScreenDriver from './src/screens/RideCompletionScreenDriver';
+import RideCompletionScreenRider from './src/screens/RideCompletionScreenRider';
+import ReviewsScreen from './src/screens/ReviewsScreen';
+import NotificationBanner from './src/components/NotificationBanner';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -46,7 +52,7 @@ function NotificationBadge({ count }) {
 }
 
 // Bottom Tab Navigator
-function TabNavigator() {
+function TabNavigator({ navigation }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const user = auth.currentUser;
 
@@ -67,26 +73,28 @@ function TabNavigator() {
   }, [user]);
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#1A1A2E',
-          borderTopColor: '#2C2C3E',
-          borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: '#5B9FAD',
-        tabBarInactiveTintColor: '#7F8C8D',
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-          fontFamily: 'System',
-        },
-      }}
-    >
+     <View style={{ flex: 1 }}>
+      <NotificationBanner navigation={navigation} />
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: '#1A1A2E',
+            borderTopColor: '#2C2C3E',
+            borderTopWidth: 1,
+            height: Platform.OS === 'ios' ? 85 : 70,
+            paddingBottom: Platform.OS === 'ios' ? 25 : 10,
+            paddingTop: 8,
+          },
+          tabBarActiveTintColor: '#5B9FAD',
+          tabBarInactiveTintColor: '#7F8C8D',
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '600',
+            fontFamily: 'System',
+          },
+        }}
+      >
       <Tab.Screen
         name="HomeTab"
         component={HomeScreen}
@@ -149,6 +157,7 @@ function TabNavigator() {
         }}
       />
     </Tab.Navigator>
+    </View>
   );
 }
 
@@ -189,6 +198,11 @@ export default function App() {
             <Stack.Screen name="RideHistory" component={RideHistoryScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="RiderBookingDetails" component={RiderBookingDetailsScreen} />
+            <Stack.Screen name="RideCompleted" component={RideCompletedScreen} />
+            <Stack.Screen name="RideCompletionDriver" component={RideCompletionScreenDriver} />
+            <Stack.Screen name="RideCompletionRider" component={RideCompletionScreenRider} />
+            <Stack.Screen name="Reviews" component={ReviewsScreen} />
           </>
         ) : (
           <>

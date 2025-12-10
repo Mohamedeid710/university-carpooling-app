@@ -125,7 +125,7 @@ export default function VehicleRegistrationScreen({ navigation, route }) {
         plateNumber: plateNumber.trim().toUpperCase(),
         seats: parseInt(seats),
         isVerified: false,
-        imageUrl: '', // In production, upload to Firebase Storage
+        imageUrl: vehicleImage || '',
         createdAt: new Date().toISOString(),
         isDefault: isFirstVehicle, // First vehicle is default
       };

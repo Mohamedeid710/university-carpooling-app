@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
+import { fetchRoute } from '../utils/routeHelpers';
 
 export default function RouteMapScreen({ navigation, route }) {
   const { ride } = route.params;
@@ -20,79 +20,43 @@ export default function RouteMapScreen({ navigation, route }) {
 
   useEffect(() => {
     if (ride.pickupCoordinates && ride.destinationCoordinates) {
-      fetchRoute();
+      loadRoute();
     }
   }, []);
 
-  const fetchRoute = async () => {
+  const loadRoute = async () => {
     try {
-      const origin = `${ride.pickupCoordinates.latitude},${ride.pickupCoordinates.longitude}`;
-      const destination = `${ride.destinationCoordinates.latitude},${ride.destinationCoordinates.longitude}`;
-      
-      const GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY_HERE';
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&key=${GOOGLE_MAPS_API_KEY}`;
+      const routeData = await fetchRoute(
+        ride.pickupCoordinates,
+        ride.destinationCoordinates
+      );
 
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.routes && data.routes.length > 0) {
-        const points = decodePolyline(data.routes[0].overview_polyline.points);
-        setRouteCoordinates(points);
-        
-        const leg = data.routes[0].legs[0];
-        setDistance(leg.distance.text);
-        setDuration(leg.duration.text);
+      if (routeData.success) {
+        setRouteCoordinates(routeData.coordinates);
+        setDistance(routeData.distance);
+        setDuration(routeData.duration);
       } else {
+        // Fallback to straight line
         setRouteCoordinates([ride.pickupCoordinates, ride.destinationCoordinates]);
       }
     } catch (error) {
-      console.error('Error fetching route:', error);
+      console.error('Error loading route:', error);
       setRouteCoordinates([ride.pickupCoordinates, ride.destinationCoordinates]);
     } finally {
       setLoading(false);
     }
   };
 
-  const decodePolyline = (encoded) => {
-    const poly = [];
-    let index = 0;
-    const len = encoded.length;
-    let lat = 0;
-    let lng = 0;
-
-    while (index < len) {
-      let b;
-      let shift = 0;
-      let result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-      lng += dlng;
-
-      poly.push({
-        latitude: lat / 1e5,
-        longitude: lng / 1e5,
-      });
-    }
-    return poly;
-  };
-
   if (loading) {
     return (
       <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#5B9FAD" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Route Map</Text>
+          <View style={{ width: 24 }} />
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#5B9FAD" />
           <Text style={styles.loadingText}>Loading route...</Text>
@@ -104,8 +68,8 @@ export default function RouteMapScreen({ navigation, route }) {
   const region = {
     latitude: (ride.pickupCoordinates.latitude + ride.destinationCoordinates.latitude) / 2,
     longitude: (ride.pickupCoordinates.longitude + ride.destinationCoordinates.longitude) / 2,
-    latitudeDelta: Math.abs(ride.pickupCoordinates.latitude - ride.destinationCoordinates.latitude) * 2,
-    longitudeDelta: Math.abs(ride.pickupCoordinates.longitude - ride.destinationCoordinates.longitude) * 2,
+    latitudeDelta: Math.abs(ride.pickupCoordinates.latitude - ride.destinationCoordinates.latitude) * 2.5,
+    longitudeDelta: Math.abs(ride.pickupCoordinates.longitude - ride.destinationCoordinates.longitude) * 2.5,
   };
 
   return (
@@ -124,28 +88,29 @@ export default function RouteMapScreen({ navigation, route }) {
         initialRegion={region}
         showsUserLocation={true}
       >
+        {/* Pickup Marker */}
         <Marker
           coordinate={ride.pickupCoordinates}
           title="Pickup"
           description={ride.pickupLocation}
-          pinColor="#5B9FAD"
         >
-          <View style={styles.markerContainer}>
+          <View style={styles.pickupMarker}>
             <Ionicons name="ellipse" size={24} color="#5B9FAD" />
           </View>
         </Marker>
 
+        {/* Destination Marker */}
         <Marker
           coordinate={ride.destinationCoordinates}
           title="Destination"
           description={ride.destination}
-          pinColor="#E74C3C"
         >
-          <View style={styles.markerContainer}>
+          <View style={styles.destinationMarker}>
             <Ionicons name="location" size={28} color="#E74C3C" />
           </View>
         </Marker>
 
+        {/* Route Polyline */}
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
@@ -154,6 +119,7 @@ export default function RouteMapScreen({ navigation, route }) {
           />
         )}
 
+        {/* Driver Location (if active ride) */}
         {ride.status === 'active' && ride.driverLocation && (
           <Marker
             coordinate={ride.driverLocation}
@@ -166,6 +132,7 @@ export default function RouteMapScreen({ navigation, route }) {
         )}
       </MapView>
 
+      {/* Info Card */}
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
           <View style={styles.infoItem}>
@@ -226,7 +193,11 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  markerContainer: {
+  pickupMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destinationMarker: {
     alignItems: 'center',
     justifyContent: 'center',
   },
