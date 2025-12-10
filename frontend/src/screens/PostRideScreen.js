@@ -590,7 +590,6 @@ const checkExistingRide = async () => {
 )}
 
 <View style={styles.suggestedPriceHeader}>
-  <Text style={styles.inputLabelYellow}>Price Per Seat (BHD)</Text>
   {distance > 0 && !isFree && (
     <Text style={styles.suggestedPriceText}>
       Suggested: {calculateRecommendedPrice()} BHD
