@@ -17,3 +17,6 @@ shadow updated the wireframes, creating layouts for Confirm Ride page and rate r
 Mohamed Has maintained and structured the kanban board and daily stand up meeting, as well as creating the burndown chart and justifying the final choice for the architectural style.
 Hamza worked/updated on the Sequence diagram for ride posting and booking
 Hamza created the component diagram that shows all system modules for the application. Diagram was created on the website visual paradigm.
+Wajd and Shadow worked on the frontend screens code
+Wajd worked on documentation
+Wajd maintained the kanban board and daily stand up meeting
