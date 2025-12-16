@@ -20,3 +20,4 @@ Hamza created the component diagram that shows all system modules for the applic
 Wajd and Shadow worked on the frontend screens code
 Wajd worked on documentation
 Wajd maintained the kanban board and daily stand up meeting
+Wajd created RouteMate User Guide (Step-by-Step)
